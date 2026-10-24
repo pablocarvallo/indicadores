@@ -1,0 +1,1095 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Indicadores</title>
+<!--STANDALONE:START-->
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Indicadores">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#DFE9FD" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#13244A" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg?v=1">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
+<!--STANDALONE:END-->
+<style>
+/* Concepto: el tablero de indicadores de Chile. Arriba la UF del día; abajo una tarjeta por indicador
+   (dólar, IPC, TPM, Imacec y tasa de créditos de consumo) con su último dato y la tendencia de 12 meses.
+   Al tocar una tarjeta se abre su gráfico histórico (1, 5 o 10 años) con la tabla de los últimos valores. */
+/*DS:TOKENS:START*/
+/* ── Domésticas · sistema de diseño común (v1) ──────────────────────────────
+   Paleta: #2950F4 · #4D78F3 · #719DF6 · #99C2F8 · #BDEBFB, con el azul marino #182D4A de fondo oscuro.
+   Estilo iOS 27: tipografía del sistema (SF Pro), tarjetas blancas sobre fondo agrupado,
+   barras y botones de vidrio, cápsulas, esquinas amplias. Igual en todas las apps de la casa. */
+:root {
+  --ds-b1: #2950F4; --ds-b2: #4D78F3; --ds-b3: #719DF6; --ds-b4: #99C2F8; --ds-b5: #BDEBFB; --ds-navy: #182D4A;
+  --ds-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --ds-font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --ds-font-round: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --ds-font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --ds-r-card: 24px; --ds-r-inner: 16px; --ds-r-field: 14px; --ds-r-sheet: 34px; --ds-r-pill: 999px;
+
+  --ds-bg: #EFF3FB;
+  --ds-bg-top: #DFE9FD;
+  --ds-surface: #FFFFFF;
+  --ds-surface-2: #F3F6FD;
+  --ds-fill: rgba(41, 80, 244, 0.07);
+  --ds-fill-2: rgba(41, 80, 244, 0.13);
+  --ds-ink: #0E1B33;
+  --ds-ink-2: #55617A;
+  --ds-ink-3: #8691A8;
+  --ds-line: rgba(24, 45, 74, 0.12);
+  --ds-line-2: rgba(24, 45, 74, 0.2);
+  --ds-tint: #2950F4;
+  --ds-tint-soft: #E5ECFE;
+  --ds-btn: #2950F4;
+  --ds-on-btn: #FFFFFF;
+  --ds-pos: #157A43; --ds-pos-soft: #DDF4E6;
+  --ds-neg: #D1281C; --ds-neg-soft: #FDE8E6;
+  --ds-warn: #A35500; --ds-warn-soft: #FFF0D9;
+  --ds-hero: radial-gradient(120% 90% at 100% 0%, rgba(189, 235, 251, 0.45) 0%, rgba(189, 235, 251, 0) 55%), linear-gradient(150deg, #4D78F3 0%, #2950F4 58%, #2141D6 100%);
+  --ds-hero-ink: #FFFFFF;
+  --ds-hero-ink-2: rgba(255, 255, 255, 0.84);
+  --ds-hero-line: rgba(255, 255, 255, 0.28);
+  --ds-hero-glass: rgba(255, 255, 255, 0.18);
+  --ds-glass: rgba(255, 255, 255, 0.7);
+  --ds-glass-strong: rgba(255, 255, 255, 0.86);
+  --ds-glass-line: rgba(255, 255, 255, 0.85);
+  --ds-glass-edge: rgba(14, 27, 51, 0.1);
+  --ds-glass-blur: blur(22px) saturate(1.8);
+  --ds-shadow-1: 0 1px 2px rgba(24, 45, 74, 0.05), 0 4px 14px rgba(24, 45, 74, 0.05);
+  --ds-shadow-2: 0 12px 32px rgba(24, 45, 74, 0.16), 0 2px 8px rgba(24, 45, 74, 0.08);
+  --ds-shadow-btn: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 6px 16px rgba(41, 80, 244, 0.26);
+  --ds-scrim: rgba(14, 27, 51, 0.36);
+  --ds-chart-1: #2950F4; --ds-chart-2: #719DF6; --ds-chart-3: #99C2F8; --ds-chart-4: #BDEBFB;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ds-bg: #0A1224;
+    --ds-bg-top: #13244A;
+    --ds-surface: #152340;
+    --ds-surface-2: #1C2C4D;
+    --ds-fill: rgba(113, 157, 246, 0.12);
+    --ds-fill-2: rgba(113, 157, 246, 0.2);
+    --ds-ink: #EEF3FF;
+    --ds-ink-2: #A9B6D0;
+    --ds-ink-3: #77859F;
+    --ds-line: rgba(189, 235, 251, 0.11);
+    --ds-line-2: rgba(189, 235, 251, 0.2);
+    --ds-tint: #8EB0FA;
+    --ds-tint-soft: rgba(113, 157, 246, 0.18);
+    --ds-btn: #3A62F5;
+    --ds-on-btn: #FFFFFF;
+    --ds-pos: #5DD68E; --ds-pos-soft: rgba(93, 214, 142, 0.14);
+    --ds-neg: #FF8A80; --ds-neg-soft: rgba(255, 138, 128, 0.14);
+    --ds-warn: #FFB65C; --ds-warn-soft: rgba(255, 182, 92, 0.14);
+    --ds-hero: radial-gradient(120% 90% at 100% 0%, rgba(189, 235, 251, 0.28) 0%, rgba(189, 235, 251, 0) 55%), linear-gradient(150deg, #3D68F2 0%, #2950F4 55%, #1C38C2 100%);
+    --ds-glass: rgba(24, 40, 70, 0.62);
+    --ds-glass-strong: rgba(24, 40, 70, 0.84);
+    --ds-glass-line: rgba(255, 255, 255, 0.14);
+    --ds-glass-edge: rgba(0, 0, 0, 0.4);
+    --ds-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --ds-shadow-2: 0 14px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --ds-shadow-btn: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 16px rgba(0, 0, 0, 0.35);
+    --ds-scrim: rgba(0, 0, 0, 0.55);
+    --ds-chart-1: #719DF6; --ds-chart-2: #4D78F3; --ds-chart-3: #99C2F8; --ds-chart-4: #BDEBFB;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ds-bg: #0A1224;
+  --ds-bg-top: #13244A;
+  --ds-surface: #152340;
+  --ds-surface-2: #1C2C4D;
+  --ds-fill: rgba(113, 157, 246, 0.12);
+  --ds-fill-2: rgba(113, 157, 246, 0.2);
+  --ds-ink: #EEF3FF;
+  --ds-ink-2: #A9B6D0;
+  --ds-ink-3: #77859F;
+  --ds-line: rgba(189, 235, 251, 0.11);
+  --ds-line-2: rgba(189, 235, 251, 0.2);
+  --ds-tint: #8EB0FA;
+  --ds-tint-soft: rgba(113, 157, 246, 0.18);
+  --ds-btn: #3A62F5;
+  --ds-on-btn: #FFFFFF;
+  --ds-pos: #5DD68E; --ds-pos-soft: rgba(93, 214, 142, 0.14);
+  --ds-neg: #FF8A80; --ds-neg-soft: rgba(255, 138, 128, 0.14);
+  --ds-warn: #FFB65C; --ds-warn-soft: rgba(255, 182, 92, 0.14);
+  --ds-hero: radial-gradient(120% 90% at 100% 0%, rgba(189, 235, 251, 0.28) 0%, rgba(189, 235, 251, 0) 55%), linear-gradient(150deg, #3D68F2 0%, #2950F4 55%, #1C38C2 100%);
+  --ds-glass: rgba(24, 40, 70, 0.62);
+  --ds-glass-strong: rgba(24, 40, 70, 0.84);
+  --ds-glass-line: rgba(255, 255, 255, 0.14);
+  --ds-glass-edge: rgba(0, 0, 0, 0.4);
+  --ds-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --ds-shadow-2: 0 14px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --ds-shadow-btn: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 16px rgba(0, 0, 0, 0.35);
+  --ds-scrim: rgba(0, 0, 0, 0.55);
+  --ds-chart-1: #719DF6; --ds-chart-2: #4D78F3; --ds-chart-3: #99C2F8; --ds-chart-4: #BDEBFB;
+  color-scheme: dark;
+}
+html { background: var(--ds-bg); }
+body {
+  font-family: var(--ds-font);
+  background: linear-gradient(180deg, var(--ds-bg-top) 0, var(--ds-bg) 340px) no-repeat, var(--ds-bg);
+  color: var(--ds-ink);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.012em;
+}
+/* ── fin de los tokens comunes ── */
+
+/* Variables propias de Indicadores */
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --c-series: #2950F4;          /* la serie de los gráficos (validada contra la tarjeta blanca) */
+  --c-spark: #9DB8F7;           /* tendencia de 12 meses, en segundo plano */
+  --c-grid: rgba(24, 45, 74, 0.1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --c-series: #6690F5; --c-spark: #40619F; --c-grid: rgba(189, 235, 251, 0.1); }
+}
+:root[data-theme="dark"] { --c-series: #6690F5; --c-spark: #40619F; --c-grid: rgba(189, 235, 251, 0.1); }
+/*DS:TOKENS:END*/
+
+/*DS:LAYER:START*/
+/* ── Domésticas · base común (v1) ── */
+html { background: var(--ds-bg); }
+body {
+  font-family: var(--ds-font);
+  background: linear-gradient(180deg, var(--ds-bg-top) 0, var(--ds-bg) 360px) no-repeat, var(--ds-bg);
+  color: var(--ds-ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+h1, h2, h3, h4 { font-family: var(--ds-font-display); letter-spacing: -0.022em; }
+button, input, select, textarea { font-family: inherit; }
+::selection { background: var(--ds-tint-soft); }
+:focus-visible { outline-color: var(--ds-tint); }
+input, select, textarea { accent-color: var(--ds-btn); caret-color: var(--ds-tint); }
+@keyframes ds-rise { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+.mark.app-icon, img.app-icon { display: block; overflow: hidden; padding: 0; background: none; object-fit: cover; border-radius: 23%; box-shadow: 0 0 0 0.5px rgba(14, 27, 51, 0.08), 0 4px 12px rgba(41, 80, 244, 0.25); }
+/* ── fin de la base común ── */
+
+/* ── Indicadores ── */
+*, *::before, *::after { box-sizing: border-box; }
+html.lock { overflow: hidden; }
+[hidden] { display: none !important; }
+body { margin: 0; padding-inline: 16px; font-size: 17px; line-height: 1.38; letter-spacing: -0.012em; -webkit-text-size-adjust: 100%; }
+.app { max-width: 480px; margin: 0 auto; padding-block: 14px 48px; display: flex; flex-direction: column; gap: 20px; }
+button, input { font: inherit; color: inherit; letter-spacing: inherit; }
+button { cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+svg { display: block; flex: none; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+.eyebrow { font-size: 13px; font-weight: 600; color: var(--ds-ink-2); letter-spacing: -0.005em; }
+:focus-visible { outline: 3px solid var(--ds-tint); outline-offset: 2px; }
+
+/* Encabezado */
+.top { display: flex; align-items: center; gap: 12px; padding-top: 6px; }
+.top .app-icon { width: 46px; height: 46px; flex: none; }
+.top-txt { flex: 1; min-width: 0; }
+.top h1 { font-size: clamp(27px, 8.6vw, 34px); line-height: 1.08; font-weight: 700; letter-spacing: -0.03em; }
+.round-btn {
+  width: 44px; height: 44px; flex: none; display: grid; place-items: center; padding: 0; border: 0.5px solid var(--ds-glass-line); border-radius: 50%;
+  background: var(--ds-glass); color: var(--ds-tint); box-shadow: var(--ds-shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: var(--ds-glass-blur); backdrop-filter: var(--ds-glass-blur); transition: transform 0.16s ease;
+}
+.round-btn:active { transform: scale(0.94); }
+.round-btn.spin svg { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Botones en cápsula */
+.btn {
+  min-height: 50px; padding: 0 20px; border: 0; border-radius: var(--ds-r-pill);
+  font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+.btn:active { transform: scale(0.97); opacity: 0.88; }
+.btn.primary { background: var(--ds-btn); color: var(--ds-on-btn); box-shadow: var(--ds-shadow-btn); }
+.btn.tonal { background: var(--ds-tint-soft); color: var(--ds-tint); }
+.btn.danger { background: var(--ds-neg-soft); color: var(--ds-neg); }
+.btn.small { min-height: 38px; padding: 0 16px; font-size: 15px; }
+.btn.block { width: 100%; }
+
+/* Tarjeta principal: la UF de hoy */
+.hero {
+  position: relative; overflow: hidden; isolation: isolate; display: block; width: 100%; text-align: left; border: 0;
+  border-radius: 28px; padding: 18px 20px 18px; background: var(--ds-hero); color: var(--ds-hero-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38), inset 0 -1px 0 rgba(14, 27, 51, 0.16), 0 16px 34px rgba(41, 80, 244, 0.26);
+  transition: transform 0.16s ease;
+}
+.hero:active { transform: scale(0.985); }
+.hero::after { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 38%); }
+.hero-art { position: absolute; right: -18px; bottom: -26px; z-index: -1; width: 160px; height: 160px; opacity: 0.12; color: #fff; }
+.hero .eyebrow { font-size: 15px; color: var(--ds-hero-ink-2); }
+.hero-val { display: block; margin-top: 6px; font-family: var(--ds-font-round); font-weight: 700; font-size: clamp(40px, 12.5vw, 52px); line-height: 1; letter-spacing: -0.03em; white-space: nowrap; }
+.hero-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.hero-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px; border-radius: var(--ds-r-pill); background: var(--ds-hero-glass); border: 0.5px solid rgba(255, 255, 255, 0.35); font-size: 14px; font-weight: 600; }
+.hero-chip span { font-weight: 500; color: var(--ds-hero-ink-2); }
+
+/* Tarjetas de indicadores */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tile {
+  min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 14px 14px 12px;
+  border: 0; border-radius: 22px; background: var(--ds-surface); box-shadow: var(--ds-shadow-1); text-align: left; color: var(--ds-ink);
+  transition: transform 0.16s ease;
+}
+.tile:active { transform: scale(0.97); }
+.tile.wide { grid-column: 1 / -1; }
+.t-label { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-val { margin-top: 4px; font-family: var(--ds-font-round); font-size: 28px; font-weight: 700; line-height: 1.08; letter-spacing: -0.025em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-val.dim { color: var(--ds-ink-3); }
+.t-cap { font-size: 13px; line-height: 1.3; color: var(--ds-ink-2); }
+.t-delta { font-size: 13px; line-height: 1.3; font-weight: 600; color: var(--ds-ink-2); }
+.t-spark { margin-top: auto; padding-top: 10px; }
+.t-spark svg { width: 100%; height: 34px; overflow: visible; }
+.t-wide-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.t-wide-row > span:first-child { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.t-wide-row .t-spark { flex: 0 0 42%; padding: 0 0 4px; }
+.t-msg { margin-top: 4px; font-size: 14px; color: var(--ds-ink-2); }
+.t-cta { align-self: flex-start; margin-top: 8px; min-height: 34px; padding: 0 14px; border-radius: var(--ds-r-pill); background: var(--ds-tint-soft); color: var(--ds-tint); font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; }
+.tag { display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px; border-radius: 10px; background: var(--ds-warn-soft); color: var(--ds-warn); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 6px; }
+.sec-head h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.025em; }
+.sec-note { font-size: 13px; font-weight: 600; color: var(--ds-ink-2); }
+
+/* Pie */
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 6px; }
+.foot p { margin: 0; font-size: 13px; color: var(--ds-ink-2); }
+.link { min-height: 40px; padding: 0 2px; border: 0; background: none; color: var(--ds-tint); font-size: 15px; font-weight: 600; }
+
+/* Hojas inferiores */
+.sheet { position: fixed; inset: 0; z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
+.backdrop { position: absolute; inset: 0; background: var(--ds-scrim); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); animation: fade 0.2s ease-out; }
+@keyframes fade { from { opacity: 0; } }
+.panel {
+  position: relative; width: 100%; max-width: 480px; max-height: 94%; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 30px 18px calc(22px + env(safe-area-inset-bottom, 0px));
+  background: var(--ds-surface); border-radius: var(--ds-r-sheet) var(--ds-r-sheet) 0 0;
+  box-shadow: 0 -10px 40px rgba(14, 27, 51, 0.18); animation: ds-rise 0.28s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+.panel::before { content: ""; position: absolute; top: 8px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: var(--ds-line-2); }
+.panel:focus { outline: none; }
+.panel > * { flex-shrink: 0; }
+.panel h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.15; }
+.panel .sub { margin: 2px 0 0; font-size: 15px; color: var(--ds-ink-2); }
+.p-big { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.p-big b { font-family: var(--ds-font-round); font-size: 40px; font-weight: 700; line-height: 1.05; letter-spacing: -0.03em; }
+.p-big span { font-size: 15px; font-weight: 600; color: var(--ds-ink-2); }
+.seg { display: flex; padding: 4px; gap: 4px; border-radius: var(--ds-r-pill); background: var(--ds-fill); }
+.seg button {
+  flex: 1; min-width: 0; min-height: 36px; padding: 0 10px; border: 0; border-radius: var(--ds-r-pill); background: transparent;
+  font-size: 15px; font-weight: 600; color: var(--ds-ink-2); white-space: nowrap;
+}
+.seg button[aria-pressed="true"] { background: var(--ds-surface); color: var(--ds-ink); box-shadow: 0 2px 8px rgba(14, 27, 51, 0.12), 0 0 0 0.5px rgba(14, 27, 51, 0.04); }
+.grp { margin: 4px 0 -6px; padding: 0 4px; font-size: 13px; font-weight: 600; color: var(--ds-ink-2); }
+.list { list-style: none; margin: 0; padding: 0; background: var(--ds-surface-2); border-radius: var(--ds-r-card); overflow: hidden; }
+.list > li { position: relative; }
+.list > li + li::before { content: ""; position: absolute; top: 0; right: 0; left: 16px; border-top: 0.5px solid var(--ds-line-2); }
+.kv { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; padding: 10px 16px; font-size: 16px; }
+.kv > span:last-child { flex: none; text-align: right; color: var(--ds-ink-2); font-variant-numeric: tabular-nums; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat { min-width: 0; padding: 10px 10px; border-radius: 16px; background: var(--ds-surface-2); }
+.stat small { display: block; font-size: 12px; font-weight: 600; color: var(--ds-ink-2); }
+.stat b { display: block; margin-top: 2px; font-size: 15px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat em { display: block; font-style: normal; font-size: 12px; color: var(--ds-ink-3); }
+.hint { margin: 0; padding: 0 4px; font-size: 14px; line-height: 1.4; color: var(--ds-ink-2); }
+.note { margin: 0; padding: 12px 14px; border-radius: var(--ds-r-field); background: var(--ds-tint-soft); font-size: 15px; }
+.note.warn { background: var(--ds-warn-soft); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > span { padding-left: 4px; font-size: 13px; font-weight: 600; color: var(--ds-ink-2); }
+.field input {
+  display: block; width: 100%; min-height: 50px; padding: 0 14px; border: 1.5px solid transparent; border-radius: var(--ds-r-field);
+  background: var(--ds-surface-2); font-family: var(--ds-font-mono); font-size: 15px; color: var(--ds-ink); -webkit-appearance: none; appearance: none;
+}
+.field input:focus { outline: none; border-color: var(--ds-tint); box-shadow: 0 0 0 4px var(--ds-tint-soft); }
+.row-btns { display: flex; gap: 10px; }
+.row-btns .btn { flex: 1; }
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.steps a, .hint a { color: var(--ds-tint); font-weight: 600; text-decoration: none; }
+
+/* Gráfico */
+.chart { position: relative; touch-action: pan-y; transition: opacity 0.2s ease; }
+.chart.busy { opacity: 0.45; }
+.chart svg { width: 100%; height: auto; overflow: visible; }
+.chart .grid-l { stroke: var(--c-grid); stroke-width: 1; shape-rendering: crispEdges; }
+.chart .zero { stroke: var(--ds-line-2); stroke-width: 1; shape-rendering: crispEdges; }
+.chart .ax { fill: var(--ds-ink-3); font-size: 11px; font-family: var(--ds-font); font-variant-numeric: tabular-nums; }
+.chart .ln { fill: none; stroke: var(--c-series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .ar { fill: var(--c-series); fill-opacity: 0.1; stroke: none; }
+.chart .br { fill: var(--c-series); transition: opacity 0.12s ease; }
+.chart.hovering .br { opacity: 0.45; }
+.chart.hovering .br.on { opacity: 1; }
+.chart .dot { fill: var(--c-series); stroke: var(--ds-surface); stroke-width: 2; }
+.chart .xh { stroke: var(--ds-ink-3); stroke-width: 1; shape-rendering: crispEdges; }
+.chart .empty { fill: var(--ds-ink-3); font-size: 14px; font-family: var(--ds-font); }
+.tip {
+  position: absolute; top: 0; z-index: 2; pointer-events: none; transform: translateX(-50%);
+  padding: 6px 10px; border-radius: 12px; background: var(--ds-glass-strong); border: 0.5px solid var(--ds-line-2);
+  box-shadow: var(--ds-shadow-2); -webkit-backdrop-filter: var(--ds-glass-blur); backdrop-filter: var(--ds-glass-blur);
+  white-space: nowrap; text-align: center;
+}
+.tip b { display: block; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tip small { display: block; font-size: 12px; color: var(--ds-ink-2); }
+.spark-l { fill: none; stroke: var(--c-spark); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.spark-b { fill: var(--c-spark); }
+.spark-now { fill: var(--c-series); }
+.spark-dot { fill: var(--c-series); stroke: var(--ds-surface); stroke-width: 2; }
+
+/* Aviso flotante */
+.toast {
+  position: fixed; left: 16px; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  max-width: 448px; min-height: 46px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; justify-content: center; text-align: center;
+  border-radius: var(--ds-r-pill); background: rgba(14, 27, 51, 0.86); color: #fff; font-size: 15px;
+  -webkit-backdrop-filter: var(--ds-glass-blur); backdrop-filter: var(--ds-glass-blur);
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.25), 0 10px 30px rgba(14, 27, 51, 0.3); animation: ds-rise 0.25s ease-out;
+}
+@media (max-width: 350px) { .grid { grid-template-columns: minmax(0, 1fr); } .t-wide-row { flex-direction: column; align-items: stretch; } .t-wide-row .t-spark { max-width: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .panel, .toast, .backdrop { animation: none; }
+  .round-btn.spin svg { animation-duration: 3s; }
+}
+/*DS:LAYER:END*/
+</style>
+</head>
+<body>
+
+<main class="app">
+  <header class="top">
+    <img class="mark app-icon" src="icons/apple-touch-icon.png?v=1" alt="">
+    <div class="top-txt">
+      <div class="eyebrow" id="today"></div>
+      <h1>Indicadores</h1>
+    </div>
+    <button type="button" class="round-btn" id="reload" data-act="reload" aria-label="Actualizar">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4.2h-4.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </header>
+
+  <button type="button" class="hero" id="hero" data-ind="uf" aria-label="UF de hoy"></button>
+
+  <div class="grid" id="tiles"></div>
+
+  <div class="foot">
+    <p id="stamp"></p>
+    <button type="button" class="link" data-act="settings">Fuentes</button>
+  </div>
+</main>
+<div class="sheet" id="sheet" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- Constantes ---------- */
+const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MESL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MI = 'https://mindicador.cl/api/';
+// Tasa promedio de créditos de consumo del Banco Central: su API pide usuario y clave, así que no se consulta desde el
+// iPhone. Una tarea de GitHub (.github/workflows/banco-central.yml) la lee cada día y la deja en datos/consumo.json.
+const CONSUMO_FILE = 'datos/consumo.json';
+const CONSUMO_SERIE = 'F022.CON.TIP.Z.NO.Z.M';
+const KEY_PREFS = 'indicadores-preferencias', KEY_STAMP = 'indicadores-lectura';
+const DATA_P = 'indicadores-datos:';      // copia local de cada indicador y año
+const FRESH = 6 * 3600 * 1000;           // los años recientes se vuelven a leer cada 6 horas
+const RANGES = [1, 5, 10];
+const IND = {
+  uf: { name: 'UF', src: 'mi' },
+  dolar: { name: 'Dólar observado', short: 'Dólar', src: 'mi', kind: 'line' },
+  ipc: { name: 'IPC', src: 'uf' },
+  tpm: { name: 'Tasa de política monetaria', short: 'TPM', src: 'mi', kind: 'step' },
+  imacec: { name: 'Imacec', src: 'mi', kind: 'bar' },
+  consumo: { name: 'Tasa promedio de créditos de consumo', short: 'Créditos de consumo', src: 'bcch', kind: 'line' }
+};
+const TILE_ORDER = ['dolar', 'ipc', 'tpm', 'imacec', 'consumo'];
+
+const I = {
+  art: '<svg class="hero-art" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V13M10 19V9M16 19V11M3 9.5l5.5-4 4.5 2.5L21 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+const $ = function (id) { return document.getElementById(id); };
+const heroEl = $('hero'), tilesEl = $('tiles'), stampEl = $('stamp'), sheetEl = $('sheet'), toastEl = $('toast'), reloadEl = $('reload');
+
+/* ---------- Formatos ---------- */
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function dayKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function todayKey() { return dayKey(new Date()); }
+function validDate(k) { return /^\d{4}-\d{2}-\d{2}$/.test(String(k)); }
+function utcOf(k) { const p = k.split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]); }
+function addMonths(y, m, d) { const t = y * 12 + m + d; return [Math.floor(t / 12), ((t % 12) + 12) % 12]; }
+function fmtDay(k, year) { const p = k.split('-'); return (+p[2]) + ' ' + MES[+p[1] - 1] + (year ? ' ' + p[0] : ''); }
+function fmtMonth(k, year) { const p = k.split('-'); return MESL[+p[1] - 1] + (year ? ' ' + p[0] : ''); }
+function cap1(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function plural(n, s, p) { return n === 1 ? s : p; }
+// Número a la chilena: punto de miles y coma decimal. El signo menos es tipográfico y no aparece en un cero.
+function nf(v, d) {
+  const s = Math.abs(v).toFixed(d), neg = v < 0 && +s !== 0, parts = s.split('.');
+  return (neg ? '−' : '') + parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + parts[1] : '');
+}
+function pesos(v, d) { return '$' + nf(v, d == null ? 2 : d); }
+function pct(v, d) { return nf(v, d == null ? 1 : d) + '%'; }
+function signed(v, d, unit) { return (v > 0 && +Math.abs(v).toFixed(d) !== 0 ? '+' : '') + nf(v, d) + (unit || ''); }
+function num(v) {
+  if (typeof v === 'number') return v;
+  let s = String(v == null ? '' : v).trim();
+  if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+  return parseFloat(s);
+}
+function fmtWhen(ms) {
+  const d = new Date(ms), k = dayKey(d), t = todayKey(), y = dayKey(new Date(Date.now() - 86400000));
+  return (k === t ? 'hoy' : k === y ? 'ayer' : fmtDay(k)) + ', ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+function toast(msg) { toastEl.textContent = msg; toastEl.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { toastEl.hidden = true; }, 3400); }
+
+/* ---------- Preferencias y copia local ---------- */
+function readJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+const prefs = Object.assign({ range: 5, ipc: '12m' }, readJSON(KEY_PREFS) || {});
+if (RANGES.indexOf(prefs.range) < 0) prefs.range = 5;
+function savePrefs() { writeJSON(KEY_PREFS, prefs); }
+
+/* ---------- Lectura ---------- */
+const store = {};          // store[código][año] = { t: leído, d: datos }
+const failed = {};         // indicadores que no se pudieron leer en la última actualización
+function cached(code, year) {
+  if (!store[code]) store[code] = {};
+  if (!(year in store[code])) store[code][year] = readJSON(DATA_P + code + ':' + year);
+  return store[code][year];
+}
+function keep(code, year, d) {
+  const e = { t: Date.now(), d: d };
+  store[code][year] = e;
+  if (!writeJSON(DATA_P + code + ':' + year, e)) { pruneCache(); writeJSON(DATA_P + code + ':' + year, e); }
+}
+// Si se llena el almacenamiento, se borran los años más antiguos (se vuelven a leer si hacen falta)
+function pruneCache() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(DATA_P) === 0) keys.push(k); }
+  keys.sort(function (a, b) { return +a.split(':').pop() - +b.split(':').pop(); });
+  keys.slice(0, Math.ceil(keys.length / 3)).forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+}
+function isFresh(e, year) {
+  if (!e) return false;
+  const cur = new Date().getFullYear();
+  // Los años cerrados se leen una sola vez; el año anterior y el actual, cada 6 horas (el Imacec se revisa)
+  return year < cur - 1 ? e.t > utcOf(year + 1 + '-02-15') : Date.now() - e.t < FRESH;
+}
+async function fetchJSON(url) {
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  const t = ctl ? setTimeout(function () { ctl.abort(); }, 20000) : 0;
+  try {
+    const r = await fetch(url, { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+// mindicador.cl: la serie viene de la más nueva a la más antigua, con la fecha en hora UTC de la medianoche chilena
+async function getMi(code, year) {
+  const j = await fetchJSON(MI + code + '/' + year);
+  return (Array.isArray(j && j.serie) ? j.serie : []).map(function (p) { return [String(p.fecha).slice(0, 10), +p.valor]; })
+    .filter(function (p) { return validDate(p[0]) && isFinite(p[1]); })
+    .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
+}
+// Banco Central: el archivo que deja la tarea de GitHub. Se lee directo del repositorio (siempre al día, aunque
+// la página aún no se haya vuelto a publicar) y, si no se puede, desde la misma página.
+function consumoUrls() {
+  const urls = [], h = location.hostname, seg = location.pathname.split('/').filter(Boolean)[0];
+  if (/\.github\.io$/.test(h) && seg) urls.push('https://raw.githubusercontent.com/' + h.replace(/\.github\.io$/, '') + '/' + seg + '/main/' + CONSUMO_FILE);
+  urls.push(CONSUMO_FILE);
+  return urls;
+}
+async function getConsumo() {
+  const urls = consumoUrls();
+  let last = null;
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const j = await fetchJSON(urls[i]);
+      const obs = (Array.isArray(j && j.obs) ? j.obs : []).map(function (p) { return [String(p[0]), num(p[1])]; })
+        .filter(function (p) { return validDate(p[0]) && isFinite(p[1]); })
+        .sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+      return { obs: obs, at: String((j && j.actualizado) || ''), nombre: String((j && j.nombre) || '') };
+    } catch (e) { last = e; }
+  }
+  throw new Error(last && /404/.test(last.message) ? 'sin-datos' : 'red');
+}
+async function load(code, year, force) {
+  const e = cached(code, year);
+  if (e && !force && isFresh(e, year)) return e.d;
+  try {
+    const d = code === 'consumo' ? await getConsumo() : await getMi(code, year);
+    keep(code, year, d);
+    return d;
+  } catch (err) {
+    if (e) return e.d;          // sin conexión: lo último que se leyó
+    throw err;
+  }
+}
+// Hasta cuatro lecturas a la vez
+async function pool(tasks, n) {
+  let i = 0;
+  const out = [];
+  async function run() { while (i < tasks.length) { const k = i++; try { out[k] = await tasks[k](); } catch (e) { out[k] = { error: e }; } } }
+  await Promise.all(Array.from({ length: Math.min(n, tasks.length) }, run));
+  return out;
+}
+function yearsFor(range) {
+  const cur = new Date().getFullYear(), ys = [];
+  for (let y = cur - range; y <= cur; y++) ys.push(y);
+  return ys;
+}
+const SOURCE = { uf: 'uf', dolar: 'dolar', ipc: 'uf', tpm: 'tpm', imacec: 'imacec', consumo: 'consumo' };
+async function ensure(inds, range, force) {
+  const tasks = [], cur = new Date().getFullYear();
+  const codes = [];
+  inds.forEach(function (k) { const c = SOURCE[k]; if (codes.indexOf(c) < 0) codes.push(c); });
+  codes.forEach(function (c) {
+    if (c === 'consumo') {   // un solo archivo con toda la serie
+      tasks.push(function () { return load('consumo', 'all', force).catch(function (e) { failed.consumo = (e && e.message) || 'red'; throw e; }); });
+      return;
+    }
+    const ys = yearsFor(range + (c === 'uf' ? 1 : 0));
+    if (c === 'uf' && new Date().getMonth() === 11) ys.push(cur + 1);   // en diciembre ya hay UF de enero
+    ys.forEach(function (y) {
+      tasks.push(function () {
+        return load(c, y, force && y >= cur - 1).catch(function (e) { if (y >= cur - 1) failed[c] = (e && e.message) || 'red'; throw e; });
+      });
+    });
+  });
+  codes.forEach(function (c) { delete failed[c]; });
+  await pool(tasks, 4);
+}
+
+/* ---------- Series ---------- */
+function series(code, fromYear) {
+  const cur = new Date().getFullYear() + 1, out = [];
+  for (let y = fromYear; y <= cur; y++) {
+    const e = store[code] && store[code][y];
+    if (e && Array.isArray(e.d)) for (let i = 0; i < e.d.length; i++) out.push(e.d[i]);
+  }
+  return out;
+}
+function consumoSeries(fromYear) {
+  const e = store.consumo && store.consumo.all;
+  return e && e.d && Array.isArray(e.d.obs) ? e.d.obs.filter(function (p) { return +p[0].slice(0, 4) >= fromYear; }) : [];
+}
+function lastOnOrBefore(s, k) { for (let i = s.length - 1; i >= 0; i--) if (s[i][0] <= k) return s[i]; return null; }
+// IPC desde la UF: entre el día 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior.
+// Por eso, el IPC de un mes es la razón entre la UF del 9 de dos meses después y la del 9 del mes siguiente.
+function ufNine(fromYear) {
+  const m = {};
+  series('uf', fromYear).forEach(function (p) { if (p[0].slice(8) === '09') m[p[0].slice(0, 7)] = p[1]; });
+  return m;
+}
+function ipcSeries(fromYear, mode) {
+  const nine = ufNine(fromYear - 1), out = [], now = new Date();
+  for (let y = fromYear; y <= now.getFullYear(); y++) {
+    for (let mo = 0; mo < 12; mo++) {
+      const a = addMonths(y, mo, mode === '12m' ? -10 : 1), b = addMonths(y, mo, 2);
+      const va = nine[a[0] + '-' + pad(a[1] + 1)], vb = nine[b[0] + '-' + pad(b[1] + 1)];
+      if (va && vb) out.push([y + '-' + pad(mo + 1) + '-01', Math.round((vb / va - 1) * 1000) / 10]);
+    }
+  }
+  return out;
+}
+// Puntos de un rango, recortados a la fecha de inicio
+function since(s, years) {
+  const d = new Date(); d.setFullYear(d.getFullYear() - years);
+  const k = dayKey(d);
+  return s.filter(function (p) { return p[0] >= k; });
+}
+
+/* ---------- Datos de cada indicador para la vista ---------- */
+function view(k) {
+  const cur = new Date().getFullYear(), today = todayKey();
+  if (k === 'uf') {
+    const s = series('uf', cur - 2);
+    if (!s.length) return null;
+    const now = lastOnOrBefore(s, today) || s[s.length - 1], last = s[s.length - 1];
+    const ago = new Date(); ago.setFullYear(ago.getFullYear() - 1);
+    const old = lastOnOrBefore(s, dayKey(ago));
+    return { v: now[1], date: now[0], last: last[0] > now[0] ? last : null, y12: old ? (now[1] / old[1] - 1) * 100 : null };
+  }
+  if (k === 'dolar') {
+    const s = series('dolar', cur - 2);
+    if (!s.length) return null;
+    const a = s[s.length - 1], b = s[s.length - 2];
+    return { v: a[1], date: a[0], prev: b ? b[1] : null, spark: since(s, 1) };
+  }
+  if (k === 'ipc') {
+    const m = ipcSeries(cur - 2, 'm'), y = ipcSeries(cur - 2, '12m');
+    if (!m.length) return null;
+    const a = m[m.length - 1], ya = y.length && y[y.length - 1][0] === a[0] ? y[y.length - 1][1] : null;
+    let acc = null;
+    const yr = m.filter(function (p) { return p[0].slice(0, 4) === a[0].slice(0, 4); });
+    if (yr.length) acc = (yr.reduce(function (t, p) { return t * (1 + p[1] / 100); }, 1) - 1) * 100;
+    return { v: a[1], date: a[0], y12: ya, ytd: acc, spark: m.slice(-12) };
+  }
+  if (k === 'tpm') {
+    const s = series('tpm', cur - 4);
+    if (!s.length) return null;
+    const a = s[s.length - 1];
+    let since0 = null;
+    for (let i = s.length - 2; i >= 0; i--) if (s[i][1] !== a[1]) { since0 = { date: s[i + 1][0], from: s[i][1] }; break; }
+    return { v: a[1], date: a[0], change: since0, spark: since(s, 1) };
+  }
+  if (k === 'imacec') {
+    const s = series('imacec', cur - 2);
+    if (!s.length) return null;
+    const a = s[s.length - 1];
+    return { v: a[1], date: a[0], spark: s.slice(-12) };
+  }
+  if (k === 'consumo') {
+    const s = consumoSeries(cur - 3);
+    if (!s.length) return null;
+    const a = s[s.length - 1], b = s[s.length - 2];
+    return { v: a[1], date: a[0], prev: b ? b[1] : null, spark: s.slice(-12) };
+  }
+  return null;
+}
+
+/* ---------- Gráficos ---------- */
+function niceTicks(min, max, n) {
+  if (!(max > min)) { const c = isFinite(min) ? min : 0; min = c - 1; max = c + 1; }
+  const raw = (max - min) / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+  const lo = Math.floor(min / step - 1e-9) * step, hi = Math.ceil(max / step + 1e-9) * step, ticks = [];
+  for (let v = lo; v <= hi + step / 2; v += step) ticks.push(Math.round(v / step) * step);
+  return { lo: lo, hi: hi, ticks: ticks, step: step };
+}
+function stepDecimals(step) { return step >= 1 ? 0 : step >= 0.1 ? 1 : 2; }
+// Muchos puntos diarios se dibujan con uno de cada tantos, siempre con el último. Para tasas, solo los cambios.
+function thin(pts, kind) {
+  if (kind === 'step') {
+    return pts.filter(function (p, i) { return i === 0 || i === pts.length - 1 || p[1] !== pts[i - 1][1] || p[1] !== (pts[i + 1] || p)[1]; });
+  }
+  if (pts.length <= 480) return pts;
+  const k = Math.ceil(pts.length / 480);
+  return pts.filter(function (p, i) { return i % k === 0 || i === pts.length - 1; });
+}
+function sparkSVG(pts, kind) {
+  const W = 120, H = 34;
+  if (!pts || pts.length < 2) return '';
+  const vals = pts.map(function (p) { return p[1]; });
+  let mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+  if (kind === 'bar') { mn = Math.min(0, mn); mx = Math.max(0, mx); }
+  if (mx === mn) { mx += 1; mn -= 1; }
+  const y = function (v) { return 3 + (H - 6) * (1 - (v - mn) / (mx - mn)); };
+  if (kind === 'bar') {
+    const n = pts.length, band = W / n, w = Math.max(2, Math.min(8, band - 2)), z = y(0);
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' + pts.map(function (p, i) {
+      const x = i * band + (band - w) / 2, yy = y(p[1]), top = Math.min(yy, z), h = Math.max(1.5, Math.abs(yy - z));
+      return '<rect class="' + (i === n - 1 ? 'spark-now' : 'spark-b') + '" x="' + x.toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1.5"/>';
+    }).join('') + '</svg>';
+  }
+  const t0 = utcOf(pts[0][0]), t1 = utcOf(pts[pts.length - 1][0]);
+  const x = function (k) { return 2 + (W - 6) * (t1 > t0 ? (utcOf(k) - t0) / (t1 - t0) : 1); };
+  const tp = thin(pts, kind);
+  let d = '';
+  tp.forEach(function (p, i) {
+    const xx = x(p[0]).toFixed(1), yy = y(p[1]).toFixed(1);
+    if (!i) d += 'M' + xx + ' ' + yy;
+    else if (kind === 'step') d += 'H' + xx + 'V' + yy;
+    else d += 'L' + xx + ' ' + yy;
+  });
+  const last = pts[pts.length - 1];
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><path class="spark-l" d="' + d + '"/>' +
+    '<circle class="spark-dot" cx="' + x(last[0]).toFixed(1) + '" cy="' + y(last[1]).toFixed(1) + '" r="4"/></svg>';
+}
+
+// Gráfico grande. pts: [[fecha, valor]]; kind: line, step o bar; fmt: texto del valor; xfmt: texto de la fecha
+function chartHTML() { return '<div class="chart" id="chart" tabindex="0" aria-label="Gráfico histórico"><div class="tip" id="tip" hidden><b></b><small></small></div><svg id="chart-svg"></svg></div>'; }
+let CH = null;
+function drawChart(pts, kind, fmt, xfmt, axfmt) {
+  const box = $('chart');
+  if (!box) return;
+  const svg = $('chart-svg'), W = Math.max(260, Math.round(box.clientWidth || 340)), H = 220;
+  const L = 46, R = 10, T = 12, B = 26, pw = W - L - R, ph = H - T - B;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  if (!pts.length) {
+    svg.innerHTML = '<text class="empty" x="' + W / 2 + '" y="' + H / 2 + '" text-anchor="middle">Sin datos para este periodo</text>';
+    CH = null; return;
+  }
+  const vals = pts.map(function (p) { return p[1]; });
+  let mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+  if (kind === 'bar') { mn = Math.min(0, mn); mx = Math.max(0, mx); }
+  else { const pad0 = (mx - mn) * 0.08 || Math.abs(mx) * 0.02 || 1; mn -= pad0; mx += pad0; }
+  const nt = niceTicks(mn, mx, 4), dec = stepDecimals(nt.step);
+  const y = function (v) { return T + ph * (1 - (v - nt.lo) / (nt.hi - nt.lo)); };
+  let h = '';
+  nt.ticks.forEach(function (v) {
+    const yy = Math.round(y(v)) + 0.5;
+    h += '<line class="' + (v === 0 && kind === 'bar' ? 'zero' : 'grid-l') + '" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '"/>';
+    h += '<text class="ax" x="' + (L - 8) + '" y="' + (yy + 4) + '" text-anchor="end">' + esc(axfmt(v, dec)) + '</text>';
+  });
+  const n = pts.length;
+  let xs;
+  if (kind === 'bar') {
+    const band = pw / n, gap = band >= 6 ? 2 : band * 0.25, w = Math.min(24, band - gap), z = y(0);
+    xs = pts.map(function (p, i) { return L + band * i + band / 2; });
+    pts.forEach(function (p, i) {
+      const yy = y(p[1]), x0 = xs[i] - w / 2, r = Math.min(4, w / 2, Math.abs(yy - z));
+      const top = p[1] >= 0, a = top ? yy : z, b = top ? z : yy, hh = Math.max(0.5, b - a);
+      // extremo de datos redondeado, base recta
+      let d;
+      if (top) d = 'M' + x0 + ' ' + b + 'V' + (a + r) + 'Q' + x0 + ' ' + a + ' ' + (x0 + r) + ' ' + a + 'H' + (x0 + w - r) + 'Q' + (x0 + w) + ' ' + a + ' ' + (x0 + w) + ' ' + (a + r) + 'V' + b + 'Z';
+      else d = 'M' + x0 + ' ' + a + 'V' + (b - r) + 'Q' + x0 + ' ' + b + ' ' + (x0 + r) + ' ' + b + 'H' + (x0 + w - r) + 'Q' + (x0 + w) + ' ' + b + ' ' + (x0 + w) + ' ' + (b - r) + 'V' + a + 'Z';
+      if (hh <= 1) d = 'M' + x0 + ' ' + (z - 0.5) + 'h' + w + 'v1h' + (-w) + 'Z';
+      h += '<path class="br" data-i="' + i + '" d="' + d + '"/>';
+    });
+  } else {
+    const t0 = utcOf(pts[0][0]), t1 = utcOf(pts[n - 1][0]);
+    xs = pts.map(function (p) { return L + pw * (t1 > t0 ? (utcOf(p[0]) - t0) / (t1 - t0) : 1); });
+    const tp = thin(pts.map(function (p, i) { return [p[0], p[1], i]; }), kind);
+    let d = '';
+    tp.forEach(function (p, j) {
+      const xx = xs[p[2]].toFixed(1), yy = y(p[1]).toFixed(1);
+      d += !j ? 'M' + xx + ' ' + yy : kind === 'step' ? 'H' + xx + 'V' + yy : 'L' + xx + ' ' + yy;
+    });
+    const base = (T + ph).toFixed(1);
+    h += '<path class="ar" d="' + d + 'V' + base + 'H' + xs[0].toFixed(1) + 'Z"/>';
+    h += '<path class="ln" d="' + d + '"/>';
+    h += '<circle class="dot" cx="' + xs[n - 1].toFixed(1) + '" cy="' + y(pts[n - 1][1]).toFixed(1) + '" r="4"/>';
+  }
+  // Eje de tiempo: años en rangos largos, meses en un año
+  const spanDays = (utcOf(pts[n - 1][0]) - utcOf(pts[0][0])) / 86400000, maxLab = Math.max(3, Math.floor(pw / 46));
+  const marks = [];
+  pts.forEach(function (p, i) {
+    const mo = +p[0].slice(5, 7), prev = pts[i - 1];
+    if (spanDays > 500) { if (!prev || prev[0].slice(0, 4) !== p[0].slice(0, 4)) if (prev) marks.push({ i: i, t: p[0].slice(0, 4) }); }
+    else if (!prev || prev[0].slice(0, 7) !== p[0].slice(0, 7)) marks.push({ i: i, t: mo === 1 ? p[0].slice(0, 4) : MES[mo - 1] });
+  });
+  const every = Math.max(1, Math.ceil(marks.length / maxLab));
+  marks.forEach(function (m, j) {
+    if (j % every) return;
+    const xx = xs[m.i];
+    if (xx < L + 10 || xx > W - R - 10) return;
+    h += '<text class="ax" x="' + xx.toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + m.t + '</text>';
+  });
+  h += '<line class="xh" id="xh" x1="0" x2="0" y1="' + T + '" y2="' + (T + ph) + '" visibility="hidden"/>';
+  if (kind !== 'bar') h += '<circle class="dot" id="xd" r="5" cx="0" cy="0" visibility="hidden"/>';
+  svg.innerHTML = h;
+  CH = { pts: pts, xs: xs, y: y, kind: kind, fmt: fmt, xfmt: xfmt, W: W, L: L, R: R, i: -1 };
+}
+function chartAt(i) {
+  const c = CH, box = $('chart');
+  if (!c || !box) return;
+  i = Math.max(0, Math.min(c.pts.length - 1, i));
+  c.i = i;
+  const p = c.pts[i], xx = c.xs[i], tip = $('tip'), xh = $('xh'), xd = $('xd');
+  box.classList.add('hovering');
+  xh.setAttribute('x1', xx); xh.setAttribute('x2', xx); xh.setAttribute('visibility', 'visible');
+  if (xd) { xd.setAttribute('cx', xx); xd.setAttribute('cy', c.y(p[1])); xd.setAttribute('visibility', 'visible'); }
+  box.querySelectorAll('.br.on').forEach(function (b) { b.classList.remove('on'); });
+  const bar = box.querySelector('.br[data-i="' + i + '"]');
+  if (bar) bar.classList.add('on');
+  tip.querySelector('b').textContent = c.fmt(p[1]);
+  tip.querySelector('small').textContent = c.xfmt(p[0]);
+  tip.hidden = false;
+  // La etiqueta va arriba del gráfico, o abajo si el punto está en la parte alta
+  const scale = box.clientWidth / c.W, half = tip.offsetWidth / 2, py = c.y(p[1]) * scale;
+  tip.style.left = Math.max(half, Math.min(box.clientWidth - half, xx * scale)) + 'px';
+  tip.style.top = (py < box.clientHeight * 0.45 ? box.clientHeight - 30 * scale - tip.offsetHeight : 4) + 'px';
+}
+function chartOff() {
+  const box = $('chart');
+  if (!box || !CH) return;
+  box.classList.remove('hovering');
+  $('tip').hidden = true;
+  $('xh').setAttribute('visibility', 'hidden');
+  if ($('xd')) $('xd').setAttribute('visibility', 'hidden');
+  CH.i = -1;
+}
+function nearest(clientX) {
+  const box = $('chart'), c = CH;
+  if (!box || !c) return -1;
+  const r = box.getBoundingClientRect(), x = (clientX - r.left) * (c.W / r.width);
+  let lo = 0, hi = c.xs.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (c.xs[mid] < x) lo = mid; else hi = mid; }
+  return Math.abs(c.xs[lo] - x) <= Math.abs(c.xs[hi] - x) ? lo : hi;
+}
+
+/* ---------- Vistas ---------- */
+function render() {
+  const t = todayKey();
+  $('today').textContent = cap1(DIAS[new Date().getDay()]) + ' ' + (+t.slice(8)) + ' de ' + MESL[+t.slice(5, 7) - 1];
+  renderHero();
+  renderTiles();
+  renderStamp();
+}
+function renderHero() {
+  const u = view('uf');
+  let h = I.art + '<span class="eyebrow">UF de hoy</span>';
+  if (!u) {
+    h += '<span class="hero-val">' + (failed.uf ? 'Sin datos' : '…') + '</span>';
+    if (failed.uf) h += '<span class="hero-row"><span class="hero-chip">No se pudo leer. Revisa la conexión.</span></span>';
+  } else {
+    h += '<span class="hero-val">' + pesos(u.v) + '</span><span class="hero-row">';
+    if (u.y12 != null) h += '<span class="hero-chip"><span>12 meses</span>' + signed(u.y12, 2, '%') + '</span>';
+    if (u.last) h += '<span class="hero-chip"><span>Al ' + fmtDay(u.last[0]) + '</span>' + pesos(u.last[1]) + '</span>';
+    h += '</span>';
+  }
+  heroEl.innerHTML = h;
+}
+function tile(k, inner, wide) {
+  return '<button type="button" class="tile' + (wide ? ' wide' : '') + '" data-ind="' + k + '"><span class="t-label">' + esc(IND[k].short || IND[k].name) + '</span>' + inner + '</button>';
+}
+function arrow(d) { return d > 0 ? '▲ ' : d < 0 ? '▼ ' : ''; }
+function renderTiles() {
+  let h = '';
+  TILE_ORDER.forEach(function (k) {
+    const v = view(k), fail = failed[SOURCE[k]];
+    if (k === 'consumo') {
+      if (!v) {
+        h += fail === 'sin-datos'
+          ? tile(k, '<span class="t-msg">Tasa promedio del Banco Central. Falta conectar tu cuenta de la API del Banco Central.</span><span class="t-cta">Cómo conectarla</span>', true)
+          : tile(k, '<span class="t-val dim">' + (fail ? '—' : '…') + '</span><span class="t-msg">' + (fail ? 'No se pudo leer el dato del Banco Central.' : 'Leyendo…') + '</span>', true);
+        return;
+      }
+      const d = v.prev != null ? v.v - v.prev : null;
+      h += tile(k, '<span class="t-wide-row"><span><span class="t-val">' + pct(v.v, 2) + '</span><span class="t-cap">' + cap1(fmtMonth(v.date, true)) + ' · tasa anual</span>' +
+        (d != null ? '<span class="t-delta">' + arrow(d) + nf(Math.abs(d), 2) + ' pp vs. mes anterior</span>' : '') +
+        '</span><span class="t-spark">' + sparkSVG(v.spark, 'line') + '</span></span>', true);
+      return;
+    }
+    if (!v) { h += tile(k, '<span class="t-val dim">' + (fail ? '—' : '…') + '</span><span class="t-cap">' + (fail ? 'No se pudo leer' : 'Leyendo…') + '</span>'); return; }
+    if (k === 'dolar') {
+      const d = v.prev != null ? v.v - v.prev : null;
+      h += tile(k, '<span class="t-val">' + pesos(v.v) + '</span><span class="t-cap">' + cap1(fmtDay(v.date)) + '</span>' +
+        (d != null ? '<span class="t-delta">' + arrow(d) + nf(Math.abs(d), 2) + ' vs. día anterior</span>' : '') +
+        '<span class="t-spark">' + sparkSVG(v.spark, 'line') + '</span>');
+    } else if (k === 'ipc') {
+      h += tile(k, '<span class="t-val">' + pct(v.v) + '</span><span class="t-cap">' + cap1(fmtMonth(v.date)) + ' · mensual</span>' +
+        (v.y12 != null ? '<span class="t-delta">12 meses: ' + pct(v.y12) + '</span>' : '') +
+        '<span class="t-spark">' + sparkSVG(v.spark, 'bar') + '</span>');
+    } else if (k === 'tpm') {
+      h += tile(k, '<span class="t-val">' + pct(v.v, 2) + '</span><span class="t-cap">' + (v.change ? 'Desde el ' + fmtDay(v.change.date, true) : 'Sin cambios') + '</span>' +
+        (v.change ? '<span class="t-delta">' + arrow(v.v - v.change.from) + 'antes ' + pct(v.change.from, 2) + '</span>' : '') +
+        '<span class="t-spark">' + sparkSVG(v.spark, 'step') + '</span>');
+    } else if (k === 'imacec') {
+      h += tile(k, '<span class="t-val">' + pct(v.v) + '</span><span class="t-cap">' + cap1(fmtMonth(v.date)) + ' · 12 meses</span>' +
+        '<span class="t-spark">' + sparkSVG(v.spark, 'bar') + '</span>');
+    }
+  });
+  tilesEl.innerHTML = h;
+}
+let loading = false, lastRead = +(readJSON(KEY_STAMP) || 0);
+function renderStamp() {
+  reloadEl.classList.toggle('spin', loading);
+  stampEl.textContent = loading ? 'Actualizando…' : lastRead ? 'Actualizado ' + fmtWhen(lastRead) : '';
+}
+async function refresh(manual) {
+  if (loading) return;
+  loading = true; renderStamp();
+  await ensure(['uf', 'dolar', 'ipc', 'tpm', 'imacec', 'consumo'], 2, !!manual);
+  // La TPM cambia poco: para saber desde cuándo rige, se miran más años
+  await ensure(['tpm'], 4, false);
+  loading = false;
+  lastRead = Date.now(); writeJSON(KEY_STAMP, lastRead);
+  render();
+  if (sheet && sheet.kind === 'ind') { renderSheet(); }
+  const bad = Object.keys(failed).filter(function (c) { return failed[c] !== 'sin-datos'; });
+  if (manual && bad.length) toast('Sin conexión: se muestra lo último que se leyó.');
+}
+
+/* ---------- Hoja de detalle ---------- */
+let sheet = null, lastFocus = null;
+function openSheet(kind, arg) {
+  sheet = { kind: kind, arg: arg };
+  lastFocus = document.activeElement;
+  sheetEl.innerHTML = '<div class="backdrop" data-act="close"></div><div class="panel" role="dialog" aria-modal="true" tabindex="-1" id="panel"></div>';
+  sheetEl.hidden = false;
+  document.documentElement.classList.add('lock');
+  renderSheet();
+  $('panel').focus();
+  if (kind === 'ind') changeRange();   // trae los años que falten para el rango elegido
+}
+function closeSheet() {
+  sheet = null; CH = null; sheetEl.hidden = true; sheetEl.innerHTML = '';
+  document.documentElement.classList.remove('lock');
+  if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch (e) {}
+}
+function seg(name, opts, cur) {
+  return '<div class="seg" role="group">' + opts.map(function (o) {
+    return '<button type="button" data-seg="' + name + '" data-v="' + o[0] + '" aria-pressed="' + (String(o[0]) === String(cur)) + '">' + esc(o[1]) + '</button>';
+  }).join('') + '</div>';
+}
+function kv(a, b) { return '<li class="kv"><span>' + a + '</span><span>' + b + '</span></li>'; }
+
+// Qué se grafica y cómo se escribe, para el indicador y el rango elegidos
+function detail(k) {
+  const range = prefs.range, from = new Date().getFullYear() - range;
+  const dayFmt = function (d) { return cap1(DIAS[new Date(utcOf(d)).getUTCDay()]) + ' ' + fmtDay(d, true); };
+  const monFmt = function (d) { return cap1(fmtMonth(d, true)); };
+  if (k === 'uf') return { pts: since(series('uf', from).filter(function (p) { return p[0] <= todayKey(); }), range), kind: 'line', fmt: function (v) { return pesos(v); }, xfmt: dayFmt, ax: function (v) { return nf(v, 0); }, diff: 'pct' };
+  if (k === 'dolar') return { pts: since(series('dolar', from), range), kind: 'line', fmt: function (v) { return pesos(v); }, xfmt: dayFmt, ax: function (v, d) { return nf(v, d); }, diff: 'pct' };
+  if (k === 'ipc') {
+    const m = prefs.ipc === 'm';
+    return { pts: since(ipcSeries(from, m ? 'm' : '12m'), range), kind: m ? 'bar' : 'line', fmt: function (v) { return pct(v); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: m ? 'none' : 'pp' };
+  }
+  if (k === 'tpm') return { pts: since(series('tpm', from), range), kind: 'step', fmt: function (v) { return pct(v, 2); }, xfmt: dayFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'pp' };
+  if (k === 'imacec') return { pts: since(series('imacec', from), range), kind: 'bar', fmt: function (v) { return pct(v); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'none' };
+  if (k === 'consumo') return { pts: since(consumoSeries(from), range), kind: 'line', fmt: function (v) { return pct(v, 2); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'pp' };
+}
+function sheetInd(k) {
+  const v = view(k), meta = IND[k];
+  let h = '<div><h2>' + esc(meta.name) + '</h2>';
+  if (k === 'uf') h += '<p class="sub">Unidad de fomento, valor diario</p>';
+  if (k === 'dolar') h += '<p class="sub">Tipo de cambio observado del Banco Central</p>';
+  if (k === 'ipc') h += '<p class="sub">Índice de Precios al Consumidor, variación en %</p>';
+  if (k === 'tpm') h += '<p class="sub">Banco Central de Chile</p>';
+  if (k === 'imacec') h += '<p class="sub">Variación en 12 meses</p>';
+  if (k === 'consumo') h += '<p class="sub">Banco Central de Chile · total, en pesos, % anual</p>';
+  h += '</div>';
+  if (k === 'consumo' && !v && failed.consumo === 'sin-datos') return h + bcchHelp();
+  if (v) {
+    let big = '', cap = '';
+    if (k === 'uf') { big = pesos(v.v); cap = 'hoy'; }
+    if (k === 'dolar') { big = pesos(v.v); cap = fmtDay(v.date, true); }
+    if (k === 'ipc') { big = pct(v.v); cap = fmtMonth(v.date, true) + (v.y12 != null ? ' · 12 meses ' + pct(v.y12) : ''); }
+    if (k === 'tpm') { big = pct(v.v, 2); cap = v.change ? 'desde el ' + fmtDay(v.change.date, true) : ''; }
+    if (k === 'imacec') { big = pct(v.v); cap = fmtMonth(v.date, true); }
+    if (k === 'consumo') { big = pct(v.v, 2); cap = fmtMonth(v.date, true); }
+    h += '<div class="p-big"><b>' + big + '</b><span>' + esc(cap) + '</span></div>';
+  }
+  if (k === 'ipc') h += seg('ipc', [['12m', 'En 12 meses'], ['m', 'Mensual']], prefs.ipc);
+  h += seg('range', RANGES.map(function (r) { return [r, r === 1 ? '1 año' : r + ' años']; }), prefs.range);
+  h += chartHTML();
+  h += '<div class="stats" id="stats"></div>';
+  h += '<h3 class="grp">Últimos valores</h3><ul class="list" id="recent"></ul>';
+  if (k === 'ipc') h += '<p class="hint">Calculado con la UF: entre el 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior. El dato mensual coincide con el del INE; el de 12 meses compone las variaciones mensuales y puede diferir en una décima del oficial.</p>';
+  if (k === 'imacec') h += '<p class="hint">Variación respecto del mismo mes del año anterior. El Banco Central revisa las cifras de meses recientes.</p>';
+  if (k === 'consumo') {
+    const e = store.consumo && store.consumo.all, at = e && e.d && e.d.at ? Date.parse(e.d.at) : 0;
+    h += '<p class="hint">Tasa de interés promedio de los créditos de consumo del sistema financiero, en pesos (serie ' + CONSUMO_SERIE + '). Es un dato mensual: el último mes aparece cuando el Banco Central lo publica.' +
+      (at ? ' La serie cambió por última vez ' + esc(fmtWhen(at)) + '.' : '') + '</p>';
+  }
+  h += '<p class="hint">Fuente: ' + (k === 'consumo' ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : 'mindicador.cl, con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + '.</p>';
+  return h;
+}
+function fillRange() {
+  if (!sheet || sheet.kind !== 'ind') return;
+  const k = sheet.arg, d = detail(k);
+  if (!d) return;
+  drawChart(d.pts, d.kind, d.fmt, d.xfmt, d.ax);
+  const st = $('stats'), rec = $('recent');
+  if (st) {
+    if (!d.pts.length) st.innerHTML = '';
+    else {
+      let mn = d.pts[0], mx = d.pts[0];
+      d.pts.forEach(function (p) { if (p[1] < mn[1]) mn = p; if (p[1] > mx[1]) mx = p; });
+      const a = d.pts[0][1], b = d.pts[d.pts.length - 1][1];
+      const ch = d.diff === 'pct' ? signed((b / a - 1) * 100, 1, '%') : d.diff === 'pp' ? signed(b - a, 2, ' pp') : '';
+      const when = function (p) { return d.kind === 'bar' || k === 'ipc' || k === 'consumo' ? fmtMonth(p[0], true) : fmtDay(p[0], true); };
+      st.innerHTML = '<div class="stat"><small>Mínimo</small><b>' + esc(d.fmt(mn[1])) + '</b><em>' + esc(when(mn)) + '</em></div>' +
+        '<div class="stat"><small>Máximo</small><b>' + esc(d.fmt(mx[1])) + '</b><em>' + esc(when(mx)) + '</em></div>' +
+        (ch ? '<div class="stat"><small>Cambio</small><b>' + ch + '</b><em>en ' + (prefs.range === 1 ? '1 año' : prefs.range + ' años') + '</em></div>'
+            : '<div class="stat"><small>Promedio</small><b>' + esc(d.fmt(d.pts.reduce(function (t, p) { return t + p[1]; }, 0) / d.pts.length)) + '</b><em>del periodo</em></div>');
+    }
+  }
+  if (rec) {
+    let list = d.pts.slice();
+    if (d.kind === 'step') list = list.filter(function (p, i) { return i === 0 || p[1] !== list[i - 1][1]; });
+    list = list.slice(-12).reverse();
+    rec.innerHTML = list.length ? list.map(function (p) { return kv(esc(d.xfmt(p[0])), esc(d.fmt(p[1]))); }).join('') : kv('Sin datos', '');
+  }
+}
+async function changeRange() {
+  if (!sheet || sheet.kind !== 'ind') return;
+  const k = sheet.arg, box = $('chart');
+  if (box) box.classList.add('busy');
+  await ensure([k], prefs.range, false);
+  if (!sheet || sheet.arg !== k) return;
+  if ($('chart')) $('chart').classList.remove('busy');
+  fillRange();
+}
+// Pasos para conectar la API del Banco Central (una sola vez, desde GitHub)
+function bcchHelp() {
+  return '<p class="note">La API del Banco Central pide usuario y clave. Para no guardarlos en el iPhone, una tarea de GitHub trae el dato cada mañana y lo deja en el repositorio de esta app.</p>' +
+    '<ol class="steps">' +
+    '<li>Crea tu cuenta gratuita y activa las credenciales en <a href="https://si3.bcentral.cl/Siete/es/Siete/API" target="_blank" rel="noopener">si3.bcentral.cl/Siete/es/Siete/API</a>.</li>' +
+    '<li>En GitHub, abre el repositorio <b>indicadores</b> → Settings → Secrets and variables → Actions, y crea dos secretos: <b>BCCH_USER</b> (tu correo) y <b>BCCH_PASS</b> (la clave de la API).</li>' +
+    '<li>En la pestaña Actions, abre «Datos del Banco Central» y toca «Run workflow».</li>' +
+    '<li>Vuelve aquí y actualiza.</li></ol>';
+}
+function sheetSettings() {
+  const e = store.consumo && store.consumo.all, at = e && e.d && e.d.at ? Date.parse(e.d.at) : 0;
+  return '<div><h2>Fuentes</h2><p class="sub">Los datos quedan guardados en este iPhone para verlos sin conexión.</p></div>' +
+    '<ul class="list">' +
+    kv('UF, dólar, TPM e Imacec', 'mindicador.cl') +
+    kv('IPC', 'Calculado con la UF') +
+    kv('Créditos de consumo', 'Banco Central') + '</ul>' +
+    '<h3 class="grp">API del Banco Central</h3>' +
+    (at ? '<p class="hint">Conectada. La tarea de GitHub revisa el Banco Central cada mañana; la serie cambió por última vez ' + esc(fmtWhen(at)) + '.</p>'
+        : failed.consumo === 'sin-datos' ? bcchHelp() : '<p class="hint">Aún no se ha leído el dato del Banco Central.</p>');
+}
+function renderSheet() {
+  const p = $('panel');
+  if (!p || !sheet) return;
+  p.innerHTML = sheet.kind === 'settings' ? sheetSettings() : sheetInd(sheet.arg);
+  p.setAttribute('aria-label', (p.querySelector('h2') || {}).textContent || 'Detalle');
+  if (sheet.kind === 'ind') fillRange();
+}
+
+/* ---------- Eventos ---------- */
+document.addEventListener('click', function (e) {
+  const t = e.target.closest('[data-act],[data-ind],[data-seg]');
+  if (!t) return;
+  if (t.dataset.ind) { openSheet('ind', t.dataset.ind); return; }
+  if (t.dataset.seg) {
+    const name = t.dataset.seg, v = t.dataset.v;
+    if (name === 'range') prefs.range = +v;
+    if (name === 'ipc') prefs.ipc = v;
+    savePrefs();
+    t.parentNode.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); });
+    changeRange();
+    return;
+  }
+  const a = t.dataset.act;
+  if (a === 'close') closeSheet();
+  else if (a === 'reload') refresh(true);
+  else if (a === 'settings') openSheet('settings');
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && sheet) { closeSheet(); return; }
+  if (document.activeElement && document.activeElement.id === 'chart' && CH && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    e.preventDefault();
+    chartAt((CH.i < 0 ? CH.pts.length - 1 : CH.i) + (e.key === 'ArrowLeft' ? -1 : 1));
+  }
+});
+// El gráfico responde al dedo: arrastrar de lado muestra el valor de cada fecha
+sheetEl.addEventListener('pointermove', function (e) { if (e.target.closest && e.target.closest('#chart')) { const i = nearest(e.clientX); if (i >= 0) chartAt(i); } });
+sheetEl.addEventListener('pointerdown', function (e) { if (e.target.closest && e.target.closest('#chart')) { const i = nearest(e.clientX); if (i >= 0) chartAt(i); } else if (CH) chartOff(); });
+sheetEl.addEventListener('pointerout', function (e) { if (e.pointerType === 'mouse' && e.target.closest && e.target.closest('#chart') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#chart'))) chartOff(); });
+document.addEventListener('focusout', function (e) { if (e.target && e.target.id === 'chart') chartOff(); });
+let rz = 0;
+window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { if (sheet && sheet.kind === 'ind') fillRange(); }, 150); });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { render(); if (Date.now() - lastRead > 30 * 60000) refresh(false); } });
+
+// Primero lo guardado; luego, los datos nuevos
+(function warm() {
+  const cur = new Date().getFullYear();
+  ['uf', 'dolar', 'tpm', 'imacec'].forEach(function (c) { for (let y = cur - 4; y <= cur + 1; y++) cached(c, y); });
+  cached('consumo', 'all');
+})();
+render();
+refresh(false);
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
+})();
+</script>
+</body>
+</html>

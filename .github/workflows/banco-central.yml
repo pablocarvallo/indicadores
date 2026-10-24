@@ -1,0 +1,39 @@
+# Trae cada mañana la tasa promedio de créditos de consumo del Banco Central (datos/consumo.json).
+# Necesita los secretos BCCH_USER y BCCH_PASS (Settings → Secrets and variables → Actions).
+name: Datos del Banco Central
+
+on:
+  schedule:
+    - cron: '17 11 * * *'   # 08:17 en Chile en horario de verano (07:17 en invierno)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: banco-central
+  cancel-in-progress: false
+
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Leer la serie del Banco Central
+        env:
+          BCCH_USER: ${{ secrets.BCCH_USER }}
+          BCCH_PASS: ${{ secrets.BCCH_PASS }}
+        run: python3 herramientas/banco-central.py
+
+      - name: Guardar si cambió
+        run: |
+          if [ -n "$(git status --porcelain datos)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add datos
+            git commit -m "Tasa de créditos de consumo del Banco Central"
+            git push
+          else
+            echo "Sin cambios en la serie."
+          fi

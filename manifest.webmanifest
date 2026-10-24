@@ -1,0 +1,18 @@
+{
+  "name": "Indicadores",
+  "short_name": "Indicadores",
+  "description": "UF, dólar, IPC, TPM, Imacec y tasa promedio de créditos de consumo, con sus gráficos históricos.",
+  "lang": "es-CL",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EFF3FB",
+  "theme_color": "#DFE9FD",
+  "icons": [
+    { "src": "icons/icon-192.png?v=1", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png?v=1", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png?v=1", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

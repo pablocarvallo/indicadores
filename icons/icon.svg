@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Indicadores">
+<defs>
+  <linearGradient id="iindxbg" x1="0.18" y1="0" x2="0.82" y2="1">
+    <stop offset="0" stop-color="#7AA4F7"/><stop offset="0.46" stop-color="#4D78F3"/><stop offset="1" stop-color="#2950F4"/>
+  </linearGradient>
+  <radialGradient id="iindxlt" cx="0.18" cy="0.06" r="0.78">
+    <stop offset="0" stop-color="#BDEBFB" stop-opacity="0.62"/><stop offset="1" stop-color="#BDEBFB" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="iindxdk" cx="0.86" cy="1.02" r="0.7">
+    <stop offset="0" stop-color="#1B3AD6" stop-opacity="0.45"/><stop offset="1" stop-color="#1B3AD6" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="iindxgw" gradientUnits="userSpaceOnUse" x1="300" y1="160" x2="700" y2="870">
+    <stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#EEF5FF"/><stop offset="1" stop-color="#C7DCFC"/>
+  </linearGradient>
+  <linearGradient id="iindxgs" gradientUnits="userSpaceOnUse" x1="300" y1="160" x2="700" y2="870">
+    <stop offset="0" stop-color="#EAFAFF" stop-opacity="0.9"/><stop offset="0.5" stop-color="#BDEBFB" stop-opacity="0.66"/><stop offset="1" stop-color="#99C2F8" stop-opacity="0.58"/>
+  </linearGradient>
+  <filter id="iindxglass" x="-30%" y="-30%" width="160%" height="170%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="20" result="sb"/>
+    <feOffset in="sb" dy="24" result="so"/>
+    <feFlood flood-color="#0E237E" flood-opacity="0.42"/>
+    <feComposite in2="so" operator="in" result="sh0"/>
+    <feComposite in="sh0" in2="SourceAlpha" operator="out" result="shadow"/>
+    <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="b1"/>
+    <feOffset in="b1" dy="8" result="o1"/>
+    <feComposite in="SourceAlpha" in2="o1" operator="arithmetic" k2="1" k3="-1" result="topEdge"/>
+    <feFlood flood-color="#FFFFFF" flood-opacity="1"/>
+    <feComposite in2="topEdge" operator="in" result="hl"/>
+    <feGaussianBlur in="SourceAlpha" stdDeviation="9" result="b2"/>
+    <feOffset in="b2" dy="-12" result="o2"/>
+    <feComposite in="SourceAlpha" in2="o2" operator="arithmetic" k2="1" k3="-1" result="botEdge"/>
+    <feFlood flood-color="#2950F4" flood-opacity="0.38"/>
+    <feComposite in2="botEdge" operator="in" result="inner"/>
+    <feGaussianBlur in="SourceAlpha" stdDeviation="14" result="bump"/>
+    <feSpecularLighting in="bump" surfaceScale="5" specularConstant="0.9" specularExponent="32" lighting-color="#FFFFFF" result="spec">
+      <feDistantLight azimuth="235" elevation="58"/>
+    </feSpecularLighting>
+    <feComposite in="spec" in2="SourceAlpha" operator="in" result="specIn"/>
+    <feMorphology in="SourceAlpha" operator="dilate" radius="2.4" result="dil"/>
+    <feComposite in="dil" in2="SourceAlpha" operator="out" result="ringA"/>
+    <feFlood flood-color="#0B1F6E" flood-opacity="0.32"/>
+    <feComposite in2="ringA" operator="in" result="rim"/>
+    <feMerge>
+      <feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/><feMergeNode in="inner"/>
+      <feMergeNode in="specIn"/><feMergeNode in="hl"/><feMergeNode in="rim"/>
+    </feMerge>
+  </filter>
+  <clipPath id="iindxround"><rect width="1024" height="1024" rx="230"/></clipPath>
+</defs>
+<g clip-path="url(#iindxround)">
+<rect width="1024" height="1024" fill="url(#iindxbg)"/>
+<rect width="1024" height="1024" fill="url(#iindxlt)"/>
+<rect width="1024" height="1024" fill="url(#iindxdk)"/>
+<g transform="translate(512 520) scale(1.04) translate(-512 -520)">
+<g filter="url(#iindxglass)" fill="url(#iindxgw)">
+  <rect x="236" y="560" width="132" height="280" rx="48"/>
+  <rect x="446" y="452" width="132" height="388" rx="48"/>
+  <rect x="656" y="340" width="132" height="500" rx="48"/>
+</g>
+<g filter="url(#iindxglass)" fill="none" stroke="url(#iindxgs)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M232 470 L410 352 L556 404 L790 218"/>
+</g>
+<circle cx="790" cy="218" r="40" fill="#2950F4" fill-opacity="0.9"/>
+<circle cx="790" cy="218" r="16" fill="#FFFFFF"/>
+</g>
+</g>
+</svg>
