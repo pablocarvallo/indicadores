@@ -38,13 +38,26 @@ pedido = urllib.request.Request(URL + '?' + consulta, headers={'User-Agent': 'in
 # La dirección lleva la clave: los errores se informan sin ella
 try:
     with urllib.request.urlopen(pedido, timeout=90) as r:
-        texto = r.read().decode('utf-8-sig')
+        crudo = r.read()
+        juego = r.headers.get_content_charset() or ''
 except urllib.error.HTTPError as e:
     falla('El Banco Central respondió con un error HTTP %s.' % e.code)
 except urllib.error.URLError as e:
     falla('No se pudo conectar con el Banco Central (%s).' % getattr(e, 'reason', type(e).__name__))
 except Exception as e:  # noqa: BLE001
     falla('No se pudo conectar con el Banco Central (%s).' % type(e).__name__)
+
+# El Banco Central puede responder en UTF-8 o en la codificación de Windows (Latin-1), según el servidor:
+# se prueba la que declara la respuesta, luego UTF-8 y al final Windows-1252, que acepta cualquier byte.
+texto = None
+for cod in [juego, 'utf-8-sig', 'cp1252', 'latin-1']:
+    if not cod:
+        continue
+    try:
+        texto = crudo.decode(cod)
+        break
+    except (UnicodeDecodeError, LookupError):
+        continue
 
 try:
     resp = json.loads(texto)
