@@ -50,8 +50,20 @@ try:
     resp = json.loads(texto)
 except ValueError:
     falla('El Banco Central no devolvió datos legibles.')
+if str(resp.get('Codigo')) == '-5':
+    # Usuario o clave rechazados. Para revisar los secretos sin mostrarlos: solo su forma, nunca su contenido.
+    raras = set('$#"\'\\&+%? ')
+    pistas = [
+        'usuario de %d caracteres%s' % (len(usuario), '' if '@' in usuario and '.' in usuario.split('@')[-1] else ', no parece un correo'),
+        'con mayúsculas' if usuario != usuario.lower() else 'en minúsculas',
+        'clave de %d caracteres' % len(clave),
+    ]
+    if any(c in raras for c in clave):
+        pistas.append('la clave tiene símbolos que la API suele rechazar ($ # comillas \\ & + % ? o espacios)')
+    if any(ord(c) > 126 for c in usuario + clave):
+        pistas.append('hay letras con tilde, ñ u otros caracteres especiales')
+    falla('El Banco Central rechazó el usuario o la clave (código -5). Revisión de los secretos: ' + '; '.join(pistas) + '.')
 if str(resp.get('Codigo')) != '0':
-    # Por ejemplo, -5: usuario o clave incorrectos, o credenciales sin activar
     falla('El Banco Central rechazó la consulta: %s (código %s).' % (resp.get('Descripcion'), resp.get('Codigo')))
 
 serie = resp.get('Series') or {}
