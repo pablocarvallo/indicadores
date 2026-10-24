@@ -17,10 +17,17 @@ NOMBRE = 'Tasa promedio de créditos de consumo, total (pesos)'
 URL = 'https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx'
 DESTINO = pathlib.Path(__file__).resolve().parent.parent / 'datos' / 'consumo.json'
 
+
+def falla(msg):
+    # En GitHub Actions, «::error::» deja el mensaje a la vista en el resumen de la tarea
+    print(('::error::' if os.environ.get('GITHUB_ACTIONS') else '') + msg)
+    sys.exit(1)
+
+
 usuario = os.environ.get('BCCH_USER', '').strip()
 clave = os.environ.get('BCCH_PASS', '').strip()
 if not usuario or not clave:
-    sys.exit('Faltan los secretos BCCH_USER y BCCH_PASS en Settings → Secrets and variables → Actions.')
+    falla('Faltan los secretos BCCH_USER y BCCH_PASS en Settings → Secrets and variables → Actions.')
 
 hoy = datetime.date.today().isoformat()
 consulta = urllib.parse.urlencode({
@@ -33,17 +40,19 @@ try:
     with urllib.request.urlopen(pedido, timeout=90) as r:
         texto = r.read().decode('utf-8-sig')
 except urllib.error.HTTPError as e:
-    sys.exit('El Banco Central respondió con un error HTTP %s.' % e.code)
+    falla('El Banco Central respondió con un error HTTP %s.' % e.code)
+except urllib.error.URLError as e:
+    falla('No se pudo conectar con el Banco Central (%s).' % getattr(e, 'reason', type(e).__name__))
 except Exception as e:  # noqa: BLE001
-    sys.exit('No se pudo conectar con el Banco Central (%s).' % type(e).__name__)
+    falla('No se pudo conectar con el Banco Central (%s).' % type(e).__name__)
 
 try:
     resp = json.loads(texto)
 except ValueError:
-    sys.exit('El Banco Central no devolvió datos legibles.')
+    falla('El Banco Central no devolvió datos legibles.')
 if str(resp.get('Codigo')) != '0':
     # Por ejemplo, -5: usuario o clave incorrectos, o credenciales sin activar
-    sys.exit('El Banco Central rechazó la consulta: %s (código %s).' % (resp.get('Descripcion'), resp.get('Codigo')))
+    falla('El Banco Central rechazó la consulta: %s (código %s).' % (resp.get('Descripcion'), resp.get('Codigo')))
 
 serie = resp.get('Series') or {}
 obs = []
@@ -60,7 +69,7 @@ for o in serie.get('Obs') or []:
     obs.append(['%s-%s-%s' % (partes[2], partes[1].zfill(2), partes[0].zfill(2)), round(v, 4)])
 obs.sort()
 if not obs:
-    sys.exit('La serie %s llegó vacía.' % SERIE)
+    falla('La serie %s llegó vacía.' % SERIE)
 
 anterior = None
 if DESTINO.exists():
