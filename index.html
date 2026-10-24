@@ -246,6 +246,7 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 .t-label { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-val { margin-top: 4px; font-family: var(--ds-font-round); font-size: 28px; font-weight: 700; line-height: 1.08; letter-spacing: -0.025em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-val.dim { color: var(--ds-ink-3); }
+.t-val.long { font-size: clamp(21px, 6.4vw, 26px); line-height: 1.15; }
 .t-cap { font-size: 13px; line-height: 1.3; color: var(--ds-ink-2); }
 .t-delta { font-size: 13px; line-height: 1.3; font-weight: 600; color: var(--ds-ink-2); }
 .t-spark { margin-top: auto; padding-top: 10px; }
@@ -302,6 +303,11 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 .stat b { display: block; margin-top: 2px; font-size: 15px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat em { display: block; font-style: normal; font-size: 12px; color: var(--ds-ink-3); }
 .hint { margin: 0; padding: 0 4px; font-size: 14px; line-height: 1.4; color: var(--ds-ink-2); }
+.hint.pinned { display: flex; align-items: center; gap: 8px; color: var(--ds-tint); font-weight: 600; }
+.btn svg { flex: none; }
+.opt { width: 100%; min-height: 50px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border: 0; background: transparent; text-align: left; font-size: 16px; color: var(--ds-ink); }
+.opt:active { background: var(--ds-fill); }
+.opt svg { color: var(--ds-tint); }
 .note { margin: 0; padding: 12px 14px; border-radius: var(--ds-r-field); background: var(--ds-tint-soft); font-size: 15px; }
 .note.warn { background: var(--ds-warn-soft); }
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -380,7 +386,7 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 
   <div class="foot">
     <p id="stamp"></p>
-    <button type="button" class="link" data-act="settings">Fuentes</button>
+    <button type="button" class="link" data-act="settings">Ajustes</button>
   </div>
 </main>
 <div class="sheet" id="sheet" hidden></div>
@@ -397,7 +403,7 @@ const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', '
 const MI = 'https://mindicador.cl/api/';
 // Tasa promedio de créditos de consumo del Banco Central: su API pide usuario y clave, así que no se consulta desde el
 // iPhone. Una tarea de GitHub (.github/workflows/banco-central.yml) la lee cada día y la deja en datos/consumo.json.
-const CONSUMO_FILE = 'datos/consumo.json';
+const BCCH_FILES = { consumo: 'datos/consumo.json', imacecde: 'datos/imacec-desest.json' };
 const CONSUMO_SERIE = 'F022.CON.TIP.Z.NO.Z.M';
 const KEY_PREFS = 'indicadores-preferencias', KEY_STAMP = 'indicadores-lectura';
 const DATA_P = 'indicadores-datos:';      // copia local de cada indicador y año
@@ -411,9 +417,11 @@ const IND = {
   imacec: { name: 'Imacec', src: 'mi', kind: 'bar' },
   consumo: { name: 'Tasa promedio de créditos de consumo', short: 'Créditos de consumo', src: 'bcch', kind: 'line' }
 };
-const TILE_ORDER = ['dolar', 'ipc', 'tpm', 'imacec', 'consumo'];
+const ORDER = ['uf', 'dolar', 'ipc', 'tpm', 'imacec', 'consumo'];   // el destacado sale de aquí y el resto va en tarjetas
 
 const I = {
+  pin: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  check: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5.5 12.5l4.2 4.2L18.5 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   art: '<svg class="hero-art" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V13M10 19V9M16 19V11M3 9.5l5.5-4 4.5 2.5L21 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 
@@ -455,8 +463,9 @@ function toast(msg) { toastEl.textContent = msg; toastEl.hidden = false; clearTi
 /* ---------- Preferencias y copia local ---------- */
 function readJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
 function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
-const prefs = Object.assign({ range: 5, ipc: '12m' }, readJSON(KEY_PREFS) || {});
+const prefs = Object.assign({ range: 5, ipc: '12m', imacec: '12m', hero: 'uf' }, readJSON(KEY_PREFS) || {});
 if (RANGES.indexOf(prefs.range) < 0) prefs.range = 5;
+if (ORDER.indexOf(prefs.hero) < 0) prefs.hero = 'uf';
 function savePrefs() { writeJSON(KEY_PREFS, prefs); }
 
 /* ---------- Lectura ---------- */
@@ -503,14 +512,14 @@ async function getMi(code, year) {
 }
 // Banco Central: el archivo que deja la tarea de GitHub. Se lee directo del repositorio (siempre al día, aunque
 // la página aún no se haya vuelto a publicar) y, si no se puede, desde la misma página.
-function consumoUrls() {
+function bcchUrls(file) {
   const urls = [], h = location.hostname, seg = location.pathname.split('/').filter(Boolean)[0];
-  if (/\.github\.io$/.test(h) && seg) urls.push('https://raw.githubusercontent.com/' + h.replace(/\.github\.io$/, '') + '/' + seg + '/main/' + CONSUMO_FILE);
-  urls.push(CONSUMO_FILE);
+  if (/\.github\.io$/.test(h) && seg) urls.push('https://raw.githubusercontent.com/' + h.replace(/\.github\.io$/, '') + '/' + seg + '/main/' + file);
+  urls.push(file);
   return urls;
 }
-async function getConsumo() {
-  const urls = consumoUrls();
+async function getBcch(code) {
+  const urls = bcchUrls(BCCH_FILES[code]);
   let last = null;
   for (let i = 0; i < urls.length; i++) {
     try {
@@ -527,7 +536,7 @@ async function load(code, year, force) {
   const e = cached(code, year);
   if (e && !force && isFresh(e, year)) return e.d;
   try {
-    const d = code === 'consumo' ? await getConsumo() : await getMi(code, year);
+    const d = BCCH_FILES[code] ? await getBcch(code) : await getMi(code, year);
     keep(code, year, d);
     return d;
   } catch (err) {
@@ -548,14 +557,15 @@ function yearsFor(range) {
   for (let y = cur - range; y <= cur; y++) ys.push(y);
   return ys;
 }
-const SOURCE = { uf: 'uf', dolar: 'dolar', ipc: 'uf', tpm: 'tpm', imacec: 'imacec', consumo: 'consumo' };
+// Fuentes de cada indicador. El Imacec usa además el índice desestacionalizado, para la variación mensual.
+const SOURCE = { uf: ['uf'], dolar: ['dolar'], ipc: ['uf'], tpm: ['tpm'], imacec: ['imacec', 'imacecde'], consumo: ['consumo'] };
 async function ensure(inds, range, force) {
   const tasks = [], cur = new Date().getFullYear();
   const codes = [];
-  inds.forEach(function (k) { const c = SOURCE[k]; if (codes.indexOf(c) < 0) codes.push(c); });
+  inds.forEach(function (k) { SOURCE[k].forEach(function (c) { if (codes.indexOf(c) < 0) codes.push(c); }); });
   codes.forEach(function (c) {
-    if (c === 'consumo') {   // un solo archivo con toda la serie
-      tasks.push(function () { return load('consumo', 'all', force).catch(function (e) { failed.consumo = (e && e.message) || 'red'; throw e; }); });
+    if (BCCH_FILES[c]) {   // un solo archivo con toda la serie
+      tasks.push(function () { return load(c, 'all', force).catch(function (e) { failed[c] = (e && e.message) || 'red'; throw e; }); });
       return;
     }
     const ys = yearsFor(range + (c === 'uf' ? 1 : 0));
@@ -579,9 +589,21 @@ function series(code, fromYear) {
   }
   return out;
 }
-function consumoSeries(fromYear) {
-  const e = store.consumo && store.consumo.all;
+function bcchSeries(code, fromYear) {
+  const e = store[code] && store[code].all;
   return e && e.d && Array.isArray(e.d.obs) ? e.d.obs.filter(function (p) { return +p[0].slice(0, 4) >= fromYear; }) : [];
+}
+function consumoSeries(fromYear) { return bcchSeries('consumo', fromYear); }
+// Imacec, variación respecto del mes anterior: del índice desestacionalizado, con un decimal como lo informa el Banco Central
+function imacecMonthly(fromYear) {
+  const s = bcchSeries('imacecde', fromYear - 1), out = [];
+  for (let i = 1; i < s.length; i++) {
+    const a = s[i - 1], b = s[i];
+    const ya = +a[0].slice(0, 4), ma = +a[0].slice(5, 7), yb = +b[0].slice(0, 4), mb = +b[0].slice(5, 7);
+    if ((yb * 12 + mb) - (ya * 12 + ma) !== 1 || !(a[1] > 0)) continue;   // solo meses seguidos
+    if (yb >= fromYear) out.push([b[0], Math.round((b[1] / a[1] - 1) * 1000) / 10]);
+  }
+  return out;
 }
 function lastOnOrBefore(s, k) { for (let i = s.length - 1; i >= 0; i--) if (s[i][0] <= k) return s[i]; return null; }
 // IPC desde la UF: entre el día 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior.
@@ -646,8 +668,9 @@ function view(k) {
   if (k === 'imacec') {
     const s = series('imacec', cur - 2);
     if (!s.length) return null;
-    const a = s[s.length - 1];
-    return { v: a[1], date: a[0], spark: s.slice(-12) };
+    const a = s[s.length - 1], mm = imacecMonthly(cur - 2);
+    const m = mm.filter(function (p) { return p[0] === a[0]; })[0] || null;
+    return { v: a[1], date: a[0], m: m ? m[1] : null, mLast: mm.length ? mm[mm.length - 1] : null, spark: s.slice(-12) };
   }
   if (k === 'consumo') {
     const s = consumoSeries(cur - 3);
@@ -828,61 +851,88 @@ function render() {
   renderTiles();
   renderStamp();
 }
+// Resumen de un indicador, igual para la tarjeta destacada y las tarjetas de abajo.
+// lines: datos secundarios; «t» es el texto de la tarjeta y «l»/«v», la etiqueta y el valor del destacado.
+function arrow(d) { return d > 0 ? '▲ ' : d < 0 ? '▼ ' : ''; }
+function summary(k) {
+  const v = view(k), fail = failed[SOURCE[k][0]];
+  const s = { k: k, label: IND[k].short || IND[k].name, hero: IND[k].name, v: v, fail: fail, lines: [] };
+  if (!v) return s;
+  if (k === 'uf') {
+    s.hero = 'UF de hoy'; s.val = pesos(v.v); s.cap = 'Hoy';
+    if (v.y12 != null) s.lines.push({ l: '12 meses', v: signed(v.y12, 2, '%'), t: '12 meses: ' + signed(v.y12, 2, '%') });
+    if (v.last) s.lines.push({ l: 'Al ' + fmtDay(v.last[0]), v: pesos(v.last[1]), t: 'Al ' + fmtDay(v.last[0]) + ': ' + pesos(v.last[1]) });
+    s.spark = [since(series('uf', new Date().getFullYear() - 2).filter(function (p) { return p[0] <= todayKey(); }), 1), 'line'];
+  } else if (k === 'dolar') {
+    s.val = pesos(v.v); s.cap = cap1(fmtDay(v.date)); s.heroCap = fmtDay(v.date, true);
+    if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: 'vs. día anterior', v: arrow(d) + nf(Math.abs(d), 2), t: arrow(d) + nf(Math.abs(d), 2) + ' vs. día anterior' }); }
+    s.spark = [v.spark, 'line'];
+  } else if (k === 'ipc') {
+    s.hero = 'IPC de ' + fmtMonth(v.date); s.val = pct(v.v); s.cap = cap1(fmtMonth(v.date)) + ' · mensual'; s.heroCap = 'Mensual';
+    if (v.y12 != null) s.lines.push({ l: '12 meses', v: pct(v.y12), t: '12 meses: ' + pct(v.y12) });
+    if (v.ytd != null) s.lines.push({ l: 'En el año', v: pct(v.ytd), t: 'En el año: ' + pct(v.ytd), heroOnly: true });
+    s.spark = [v.spark, 'bar'];
+  } else if (k === 'tpm') {
+    s.val = pct(v.v, 2); s.cap = v.change ? 'Desde el ' + fmtDay(v.change.date, true) : 'Sin cambios'; s.heroCap = s.cap;
+    if (v.change) s.lines.push({ l: 'Antes', v: arrow(v.v - v.change.from) + pct(v.change.from, 2), t: arrow(v.v - v.change.from) + 'antes ' + pct(v.change.from, 2) });
+    s.spark = [v.spark, 'step'];
+  } else if (k === 'imacec') {
+    s.hero = 'Imacec de ' + fmtMonth(v.date); s.val = pct(v.v); s.cap = cap1(fmtMonth(v.date)) + ' · 12 meses'; s.heroCap = 'En 12 meses';
+    if (v.m != null) s.lines.push({ l: 'Mensual', v: signed(v.m, 1, '%'), t: 'Mensual: ' + signed(v.m, 1, '%') + ' (desest.)' });
+    s.spark = [v.spark, 'bar'];
+  } else if (k === 'consumo') {
+    s.val = pct(v.v, 2); s.cap = cap1(fmtMonth(v.date, true)) + ' · tasa anual'; s.heroCap = cap1(fmtMonth(v.date, true));
+    if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: 'vs. mes anterior', v: arrow(d) + nf(Math.abs(d), 2) + ' pp', t: arrow(d) + nf(Math.abs(d), 2) + ' pp vs. mes anterior' }); }
+    s.spark = [v.spark, 'line'];
+  }
+  return s;
+}
+function missingText(s) {
+  if (s.k === 'consumo' && s.fail === 'sin-datos') return 'Falta conectar la API del Banco Central.';
+  if (s.k === 'consumo') return s.fail ? 'No se pudo leer el dato del Banco Central.' : 'Leyendo…';
+  return s.fail ? 'No se pudo leer. Revisa la conexión.' : 'Leyendo…';
+}
 function renderHero() {
-  const u = view('uf');
-  let h = I.art + '<span class="eyebrow">UF de hoy</span>';
-  if (!u) {
-    h += '<span class="hero-val">' + (failed.uf ? 'Sin datos' : '…') + '</span>';
-    if (failed.uf) h += '<span class="hero-row"><span class="hero-chip">No se pudo leer. Revisa la conexión.</span></span>';
+  const s = summary(prefs.hero);
+  heroEl.dataset.ind = s.k;
+  heroEl.setAttribute('aria-label', s.hero);
+  let h = I.art + '<span class="eyebrow">' + esc(s.hero) + '</span>';
+  if (!s.v) {
+    h += '<span class="hero-val">' + (s.fail ? 'Sin datos' : '…') + '</span>';
+    if (s.fail) h += '<span class="hero-row"><span class="hero-chip">' + esc(missingText(s)) + '</span></span>';
   } else {
-    h += '<span class="hero-val">' + pesos(u.v) + '</span><span class="hero-row">';
-    if (u.y12 != null) h += '<span class="hero-chip"><span>12 meses</span>' + signed(u.y12, 2, '%') + '</span>';
-    if (u.last) h += '<span class="hero-chip"><span>Al ' + fmtDay(u.last[0]) + '</span>' + pesos(u.last[1]) + '</span>';
+    h += '<span class="hero-val">' + s.val + '</span><span class="hero-row">';
+    if (s.heroCap) h += '<span class="hero-chip">' + esc(s.heroCap) + '</span>';
+    s.lines.forEach(function (x) { h += '<span class="hero-chip"><span>' + esc(x.l) + '</span>' + esc(x.v) + '</span>'; });
     h += '</span>';
   }
   heroEl.innerHTML = h;
 }
-function tile(k, inner, wide) {
-  return '<button type="button" class="tile' + (wide ? ' wide' : '') + '" data-ind="' + k + '"><span class="t-label">' + esc(IND[k].short || IND[k].name) + '</span>' + inner + '</button>';
-}
-function arrow(d) { return d > 0 ? '▲ ' : d < 0 ? '▼ ' : ''; }
 function renderTiles() {
-  let h = '';
-  TILE_ORDER.forEach(function (k) {
-    const v = view(k), fail = failed[SOURCE[k]];
-    if (k === 'consumo') {
-      if (!v) {
-        h += fail === 'sin-datos'
-          ? tile(k, '<span class="t-msg">Tasa promedio del Banco Central. Falta conectar tu cuenta de la API del Banco Central.</span><span class="t-cta">Cómo conectarla</span>', true)
-          : tile(k, '<span class="t-val dim">' + (fail ? '—' : '…') + '</span><span class="t-msg">' + (fail ? 'No se pudo leer el dato del Banco Central.' : 'Leyendo…') + '</span>', true);
-        return;
-      }
-      const d = v.prev != null ? v.v - v.prev : null;
-      h += tile(k, '<span class="t-wide-row"><span><span class="t-val">' + pct(v.v, 2) + '</span><span class="t-cap">' + cap1(fmtMonth(v.date, true)) + ' · tasa anual</span>' +
-        (d != null ? '<span class="t-delta">' + arrow(d) + nf(Math.abs(d), 2) + ' pp vs. mes anterior</span>' : '') +
-        '</span><span class="t-spark">' + sparkSVG(v.spark, 'line') + '</span></span>', true);
-      return;
+  const list = ORDER.filter(function (k) { return k !== prefs.hero; });
+  tilesEl.innerHTML = list.map(function (k, i) {
+    const s = summary(k), wide = i === list.length - 1 && list.length % 2 === 1;
+    let inner;
+    if (!s.v) {
+      inner = s.k === 'consumo' && s.fail === 'sin-datos'
+        ? '<span class="t-msg">Tasa promedio del Banco Central. Falta conectar tu cuenta de la API del Banco Central.</span><span class="t-cta">Cómo conectarla</span>'
+        : '<span class="t-val dim">' + (s.fail ? '—' : '…') + '</span><span class="t-cap">' + esc(missingText(s)) + '</span>';
+    } else {
+      const first = s.lines.filter(function (x) { return !x.heroOnly; })[0];
+      const text = '<span class="t-val' + (!wide && s.val.length >= 10 ? ' long' : '') + '">' + s.val + '</span><span class="t-cap">' + esc(s.cap) + '</span>' + (first ? '<span class="t-delta">' + esc(first.t) + '</span>' : '');
+      const spark = '<span class="t-spark">' + (s.spark ? sparkSVG(s.spark[0], s.spark[1]) : '') + '</span>';
+      inner = wide ? '<span class="t-wide-row"><span>' + text + '</span>' + spark + '</span>' : text + spark;
     }
-    if (!v) { h += tile(k, '<span class="t-val dim">' + (fail ? '—' : '…') + '</span><span class="t-cap">' + (fail ? 'No se pudo leer' : 'Leyendo…') + '</span>'); return; }
-    if (k === 'dolar') {
-      const d = v.prev != null ? v.v - v.prev : null;
-      h += tile(k, '<span class="t-val">' + pesos(v.v) + '</span><span class="t-cap">' + cap1(fmtDay(v.date)) + '</span>' +
-        (d != null ? '<span class="t-delta">' + arrow(d) + nf(Math.abs(d), 2) + ' vs. día anterior</span>' : '') +
-        '<span class="t-spark">' + sparkSVG(v.spark, 'line') + '</span>');
-    } else if (k === 'ipc') {
-      h += tile(k, '<span class="t-val">' + pct(v.v) + '</span><span class="t-cap">' + cap1(fmtMonth(v.date)) + ' · mensual</span>' +
-        (v.y12 != null ? '<span class="t-delta">12 meses: ' + pct(v.y12) + '</span>' : '') +
-        '<span class="t-spark">' + sparkSVG(v.spark, 'bar') + '</span>');
-    } else if (k === 'tpm') {
-      h += tile(k, '<span class="t-val">' + pct(v.v, 2) + '</span><span class="t-cap">' + (v.change ? 'Desde el ' + fmtDay(v.change.date, true) : 'Sin cambios') + '</span>' +
-        (v.change ? '<span class="t-delta">' + arrow(v.v - v.change.from) + 'antes ' + pct(v.change.from, 2) + '</span>' : '') +
-        '<span class="t-spark">' + sparkSVG(v.spark, 'step') + '</span>');
-    } else if (k === 'imacec') {
-      h += tile(k, '<span class="t-val">' + pct(v.v) + '</span><span class="t-cap">' + cap1(fmtMonth(v.date)) + ' · 12 meses</span>' +
-        '<span class="t-spark">' + sparkSVG(v.spark, 'bar') + '</span>');
-    }
-  });
-  tilesEl.innerHTML = h;
+    return '<button type="button" class="tile' + (wide ? ' wide' : '') + '" data-ind="' + k + '"><span class="t-label">' + esc(s.label) + '</span>' + inner + '</button>';
+  }).join('');
+}
+function setHero(k) {
+  if (ORDER.indexOf(k) < 0) return;
+  prefs.hero = k; savePrefs();
+  render();
+  if (sheet) renderSheet();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast('Ahora arriba: ' + IND[k].name + '.');
 }
 let loading = false, lastRead = +(readJSON(KEY_STAMP) || 0);
 function renderStamp() {
@@ -939,7 +989,10 @@ function detail(k) {
     return { pts: since(ipcSeries(from, m ? 'm' : '12m'), range), kind: m ? 'bar' : 'line', fmt: function (v) { return pct(v); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: m ? 'none' : 'pp' };
   }
   if (k === 'tpm') return { pts: since(series('tpm', from), range), kind: 'step', fmt: function (v) { return pct(v, 2); }, xfmt: dayFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'pp' };
-  if (k === 'imacec') return { pts: since(series('imacec', from), range), kind: 'bar', fmt: function (v) { return pct(v); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'none' };
+  if (k === 'imacec') {
+    const m = prefs.imacec === 'm';
+    return { pts: since(m ? imacecMonthly(from) : series('imacec', from), range), kind: 'bar', fmt: function (v) { return m ? signed(v, 1, '%') : pct(v); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'none' };
+  }
   if (k === 'consumo') return { pts: since(consumoSeries(from), range), kind: 'line', fmt: function (v) { return pct(v, 2); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'pp' };
 }
 function sheetInd(k) {
@@ -949,7 +1002,7 @@ function sheetInd(k) {
   if (k === 'dolar') h += '<p class="sub">Tipo de cambio observado del Banco Central</p>';
   if (k === 'ipc') h += '<p class="sub">Índice de Precios al Consumidor, variación en %</p>';
   if (k === 'tpm') h += '<p class="sub">Banco Central de Chile</p>';
-  if (k === 'imacec') h += '<p class="sub">Variación en 12 meses</p>';
+  if (k === 'imacec') h += '<p class="sub">Índice mensual de actividad económica</p>';
   if (k === 'consumo') h += '<p class="sub">Banco Central de Chile · total, en pesos, % anual</p>';
   h += '</div>';
   if (k === 'consumo' && !v && failed.consumo === 'sin-datos') return h + bcchHelp();
@@ -959,23 +1012,36 @@ function sheetInd(k) {
     if (k === 'dolar') { big = pesos(v.v); cap = fmtDay(v.date, true); }
     if (k === 'ipc') { big = pct(v.v); cap = fmtMonth(v.date, true) + (v.y12 != null ? ' · 12 meses ' + pct(v.y12) : ''); }
     if (k === 'tpm') { big = pct(v.v, 2); cap = v.change ? 'desde el ' + fmtDay(v.change.date, true) : ''; }
-    if (k === 'imacec') { big = pct(v.v); cap = fmtMonth(v.date, true); }
+    if (k === 'imacec') {
+      if (prefs.imacec === 'm') { big = v.mLast ? signed(v.mLast[1], 1, '%') : '—'; cap = v.mLast ? fmtMonth(v.mLast[0], true) + ' · respecto del mes anterior' : 'sin dato mensual'; }
+      else { big = pct(v.v); cap = fmtMonth(v.date, true) + ' · en 12 meses'; }
+    }
     if (k === 'consumo') { big = pct(v.v, 2); cap = fmtMonth(v.date, true); }
     h += '<div class="p-big"><b>' + big + '</b><span>' + esc(cap) + '</span></div>';
   }
   if (k === 'ipc') h += seg('ipc', [['12m', 'En 12 meses'], ['m', 'Mensual']], prefs.ipc);
+  if (k === 'imacec') h += seg('imacec', [['12m', 'En 12 meses'], ['m', 'Mensual']], prefs.imacec);
+  if (k === 'imacec' && prefs.imacec === 'm' && !bcchSeries('imacecde', 2000).length) {
+    h += '<p class="note">' + (failed.imacecde === 'sin-datos' ? 'La variación mensual llega con la próxima actualización desde el Banco Central.' : failed.imacecde ? 'No se pudo leer el Imacec desestacionalizado.' : 'Leyendo el Imacec desestacionalizado…') + '</p>';
+  }
   h += seg('range', RANGES.map(function (r) { return [r, r === 1 ? '1 año' : r + ' años']; }), prefs.range);
   h += chartHTML();
   h += '<div class="stats" id="stats"></div>';
   h += '<h3 class="grp">Últimos valores</h3><ul class="list" id="recent"></ul>';
   if (k === 'ipc') h += '<p class="hint">Calculado con la UF: entre el 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior. El dato mensual coincide con el del INE; el de 12 meses compone las variaciones mensuales y puede diferir en una décima del oficial.</p>';
-  if (k === 'imacec') h += '<p class="hint">Variación respecto del mismo mes del año anterior. El Banco Central revisa las cifras de meses recientes.</p>';
+  if (k === 'imacec') h += '<p class="hint">' + (prefs.imacec === 'm'
+    ? 'Variación respecto del mes anterior, calculada con la serie desestacionalizada del Banco Central. Esa serie se recalcula cada mes, así que los meses recientes pueden cambiar.'
+    : 'Variación respecto del mismo mes del año anterior. El Banco Central revisa las cifras de meses recientes.') + '</p>';
   if (k === 'consumo') {
     const e = store.consumo && store.consumo.all, at = e && e.d && e.d.at ? Date.parse(e.d.at) : 0;
     h += '<p class="hint">Tasa de interés promedio de los créditos de consumo del sistema financiero, en pesos (serie ' + CONSUMO_SERIE + '). Es un dato mensual: el último mes aparece cuando el Banco Central lo publica.' +
       (at ? ' La serie cambió por última vez ' + esc(fmtWhen(at)) + '.' : '') + '</p>';
   }
-  h += '<p class="hint">Fuente: ' + (k === 'consumo' ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : 'mindicador.cl, con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + '.</p>';
+  const bcch = k === 'consumo' || (k === 'imacec' && prefs.imacec === 'm');
+  h += '<p class="hint">Fuente: ' + (bcch ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : 'mindicador.cl, con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + '.</p>';
+  h += prefs.hero === k
+    ? '<p class="hint pinned">' + I.pin + 'Destacado arriba en la pantalla principal.</p>'
+    : '<button type="button" class="btn tonal block" data-act="hero" data-k="' + k + '">' + I.pin + 'Destacar arriba</button>';
   return h;
 }
 function fillRange() {
@@ -1025,10 +1091,16 @@ function bcchHelp() {
 }
 function sheetSettings() {
   const e = store.consumo && store.consumo.all, at = e && e.d && e.d.at ? Date.parse(e.d.at) : 0;
-  return '<div><h2>Fuentes</h2><p class="sub">Los datos quedan guardados en este iPhone para verlos sin conexión.</p></div>' +
-    '<ul class="list">' +
+  return '<div><h2>Ajustes</h2><p class="sub">Los datos quedan guardados en este iPhone para verlos sin conexión.</p></div>' +
+    '<h3 class="grp">Destacado arriba</h3><ul class="list" role="radiogroup" aria-label="Indicador destacado arriba">' +
+    ORDER.map(function (k) {
+      const on = prefs.hero === k;
+      return '<li><button type="button" class="opt" role="radio" aria-checked="' + on + '" data-act="hero" data-k="' + k + '"><span>' + esc(IND[k].name) + '</span>' + (on ? I.check : '') + '</button></li>';
+    }).join('') + '</ul>' +
+    '<h3 class="grp">Fuentes</h3><ul class="list">' +
     kv('UF, dólar, TPM e Imacec', 'mindicador.cl') +
     kv('IPC', 'Calculado con la UF') +
+    kv('Imacec mensual', 'Banco Central') +
     kv('Créditos de consumo', 'Banco Central') + '</ul>' +
     '<h3 class="grp">API del Banco Central</h3>' +
     (at ? '<p class="hint">Conectada. La tarea de GitHub revisa el Banco Central cada mañana; la serie cambió por última vez ' + esc(fmtWhen(at)) + '.</p>'
@@ -1051,8 +1123,10 @@ document.addEventListener('click', function (e) {
     const name = t.dataset.seg, v = t.dataset.v;
     if (name === 'range') prefs.range = +v;
     if (name === 'ipc') prefs.ipc = v;
+    if (name === 'imacec') prefs.imacec = v;
     savePrefs();
     t.parentNode.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); });
+    if (name === 'imacec') renderSheet();     // cambia también la cifra grande y la nota
     changeRange();
     return;
   }
@@ -1060,6 +1134,7 @@ document.addEventListener('click', function (e) {
   if (a === 'close') closeSheet();
   else if (a === 'reload') refresh(true);
   else if (a === 'settings') openSheet('settings');
+  else if (a === 'hero') setHero(t.dataset.k);
 });
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' && sheet) { closeSheet(); return; }
@@ -1081,7 +1156,7 @@ document.addEventListener('visibilitychange', function () { if (document.visibil
 (function warm() {
   const cur = new Date().getFullYear();
   ['uf', 'dolar', 'tpm', 'imacec'].forEach(function (c) { for (let y = cur - 4; y <= cur + 1; y++) cached(c, y); });
-  cached('consumo', 'all');
+  cached('consumo', 'all'); cached('imacecde', 'all');
 })();
 render();
 refresh(false);
