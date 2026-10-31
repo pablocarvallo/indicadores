@@ -140,7 +140,8 @@ body {
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.012em;
 }
-/* ── fin de los tokens comunes ── */
+/*DS:TOKENS:END*/
+/*DS:VARS:START*/
 
 /* Variables propias de Indicadores */
 :root {
@@ -155,10 +156,10 @@ body {
   :root:not([data-theme="light"]) { --c-series: #6690F5; --c-spark: #40619F; --c-grid: rgba(189, 235, 251, 0.1); }
 }
 :root[data-theme="dark"] { --c-series: #6690F5; --c-spark: #40619F; --c-grid: rgba(189, 235, 251, 0.1); }
-/*DS:TOKENS:END*/
+/*DS:VARS:END*/
 
-/*DS:LAYER:START*/
-/* ── Domésticas · base común (v1) ── */
+/*DS:BASE:START*/
+/* ── Domésticas · elementos comunes (v1): fondo, tipografía, campos, icono de la app ── */
 html { background: var(--ds-bg); }
 body {
   font-family: var(--ds-font);
@@ -174,7 +175,8 @@ button, input, select, textarea { font-family: inherit; }
 input, select, textarea { accent-color: var(--ds-btn); caret-color: var(--ds-tint); }
 @keyframes ds-rise { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
 .mark.app-icon, img.app-icon { display: block; overflow: hidden; padding: 0; background: none; object-fit: cover; border-radius: 23%; box-shadow: 0 0 0 0.5px rgba(14, 27, 51, 0.08), 0 4px 12px rgba(41, 80, 244, 0.25); }
-/* ── fin de la base común ── */
+/*DS:BASE:END*/
+/*DS:APP:START*/
 
 /* ── Indicadores ── */
 *, *::before, *::after { box-sizing: border-box; }
@@ -363,7 +365,7 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
   .panel, .toast, .backdrop { animation: none; }
   .round-btn.spin svg { animation-duration: 3s; }
 }
-/*DS:LAYER:END*/
+/*DS:APP:END*/
 </style>
 </head>
 <body>
