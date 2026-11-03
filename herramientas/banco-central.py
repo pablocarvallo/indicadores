@@ -207,22 +207,41 @@ def imacec_desest():
 
 
 # ---------- Petróleo Brent y WTI ----------
+# Códigos de las series diarias (el WTI se confirmó por su nombre; el Brent sigue el mismo patrón)
+DIARIOS = {'brent': 'F019.PPB.PRE.41AB.D', 'wti': 'F019.PPB.PRE.41B.D'}
+
+
 def petroleo(tipo):
     archivo = tipo + '.json'
-    codigo = codigo_guardado(archivo)
-    nombre, obs = '', []
-    if codigo:
+    guardado = codigo_guardado(archivo)
+    # Primero la serie diaria; la mensual solo si no hay diaria
+    codigos = []
+    for c in [guardado if guardado.endswith('.D') else '', DIARIOS[tipo]]:
+        if c and c not in codigos:
+            codigos.append(c)
+    nombre, obs, codigo = '', [], ''
+    for c in codigos:
         try:
-            nombre, obs = leer_serie(codigo, '2014-01-01')
+            n, o = leer_serie(c, '2014-01-01')
         except Rechazo:
-            obs = []
-    if not obs or tipo not in sin_tildes(nombre):
-        # Diaria si existe; si no, mensual. Fuera los futuros, promedios y variaciones.
-        codigo, frecuencia = buscar(['DAILY', 'MONTHLY'], ['petroleo', tipo], r'futuro|promedio|variaci|indice|spread|diferencial')
+            continue
+        if o and tipo in sin_tildes(n):
+            nombre, obs, codigo = n, o, c
+            break
+    if not obs:
+        try:
+            codigo, frecuencia = buscar(['DAILY'], [tipo, 'barril'], r'futuro|variaci|indice|spread|diferencial')
+        except Rechazo:
+            # Para revisar a mano: los títulos diarios que nombran este petróleo
+            vistos = [c + ' «' + t + '»' for c, t in catalogo('DAILY') if tipo in t][:6]
+            aviso('notice', 'Petróleo %s: no hay serie diaria; series diarias que lo nombran: %s.' % (tipo.upper(), '; '.join(vistos) or 'ninguna'))
+            codigo, frecuencia = buscar(['MONTHLY'], ['petroleo', tipo], r'futuro|promedio|variaci|indice|spread|diferencial')
         nombre, obs = leer_serie(codigo, '2014-01-01')
         aviso('notice', 'Petróleo %s: se usa la serie %s (%s, %s).' % (tipo.upper(), codigo, nombre, frecuencia.lower()))
     if not obs:
         raise Rechazo('la serie del petróleo %s llegó vacía' % tipo.upper())
+    if codigo != guardado:
+        aviso('notice', 'Petróleo %s: serie %s (%s).' % (tipo.upper(), codigo, nombre))
     guardar(archivo, codigo, nombre or 'Precio del petróleo %s (dólares/barril)' % tipo.upper(), obs)
 
 
