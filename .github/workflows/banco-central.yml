@@ -1,12 +1,13 @@
 # Trae del Banco Central el Imacec desestacionalizado y el precio del petróleo (Brent y WTI) para la app,
-# dos veces al día, y revisa que findic.cl responda. Necesita los secretos BCCH_USER y BCCH_PASS
-# (Settings → Secrets and variables → Actions).
+# tres veces al día, y revisa que findic.cl responda. Necesita los secretos BCCH_USER y BCCH_PASS; con el
+# secreto opcional OILPRICEAPI_KEY agrega el precio del petróleo del día (Settings → Secrets and variables → Actions).
 name: Datos del Banco Central
 
 on:
   schedule:
     - cron: '17 11 * * *'   # 08:17 en Chile en horario de verano (07:17 en invierno)
-    - cron: '47 22 * * *'   # 19:47 en Chile en horario de verano, cuando ya están los precios del día
+    - cron: '17 16 * * *'   # 13:17, con el precio del petróleo de la mañana
+    - cron: '47 22 * * *'   # 19:47, con el cierre del día
   workflow_dispatch:
 
 permissions:
@@ -26,6 +27,7 @@ jobs:
         env:
           BCCH_USER: ${{ secrets.BCCH_USER }}
           BCCH_PASS: ${{ secrets.BCCH_PASS }}
+          OILPRICEAPI_KEY: ${{ secrets.OILPRICEAPI_KEY }}
         run: python3 herramientas/banco-central.py
 
       - name: Guardar si cambió

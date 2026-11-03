@@ -650,7 +650,8 @@ async function getBcch(code) {
       const obs = (Array.isArray(j && j.obs) ? j.obs : []).map(function (p) { return [String(p[0]), num(p[1])]; })
         .filter(function (p) { return validDate(p[0]) && isFinite(p[1]); })
         .sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
-      return { obs: obs, at: String((j && j.actualizado) || ''), nombre: String((j && j.nombre) || '') };
+      return { obs: obs, at: String((j && j.actualizado) || ''), nombre: String((j && j.nombre) || ''),
+        mercado: Array.isArray(j && j.mercado) ? j.mercado.map(String) : [] };
     } catch (e) { last = e; }
   }
   throw new Error(last && /404/.test(last.message) ? 'sin-datos' : 'red');
@@ -801,10 +802,14 @@ function view(k) {
     return { v: a[1], date: a[0], prev: b ? b[1] : null, spark: since(s, 1) };
   }
   if (k === 'petroleo') {
-    const s = bcchSeries('brent', cur - 2), w = bcchSeries('wti', cur - 2);
+    // El crudo elegido en el detalle (Brent o WTI) va primero; el otro, como dato secundario
+    const main = prefs.crudo, other = main === 'wti' ? 'brent' : 'wti';
+    let s = bcchSeries(main, cur - 2), w = bcchSeries(other, cur - 2), name = main;
+    if (!s.length && w.length) { const x = s; s = w; w = x; name = other; }
     if (!s.length) return null;
-    const a = s[s.length - 1], b = s[s.length - 2], wl = w.length ? w[w.length - 1] : null;
-    return { v: a[1], date: a[0], prev: b ? b[1] : null, wti: wl, spark: since(s, 1) };
+    const a = s[s.length - 1], b = s[s.length - 2], ol = w.length ? w[w.length - 1] : null;
+    const e = store[name] && store[name].all, mk = e && e.d && Array.isArray(e.d.mercado) ? e.d.mercado : [];
+    return { v: a[1], date: a[0], prev: b ? b[1] : null, crudo: name, other: ol, spark: since(s, 1), market: mk.indexOf(a[0]) >= 0 };
   }
   return null;
 }
@@ -1013,8 +1018,9 @@ function summary(k) {
     if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: 'vs. día anterior', v: arrow(d) + nf(Math.abs(d), 2), t: arrow(d) + nf(Math.abs(d), 2) + ' vs. día anterior' }); }
     s.spark = [v.spark, 'line'];
   } else if (k === 'petroleo') {
-    s.hero = 'Petróleo Brent, dólares por barril'; s.val = usd(v.v); s.cap = cap1(fmtDay(v.date)) + ' · Brent'; s.heroCap = fmtDay(v.date, true);
-    if (v.wti) s.lines.push({ l: 'WTI', v: usd(v.wti[1]), t: 'WTI: ' + usd(v.wti[1]) });
+    const nm = v.crudo === 'wti' ? 'WTI' : 'Brent', on = v.crudo === 'wti' ? 'Brent' : 'WTI';
+    s.hero = 'Petróleo ' + nm + ', dólares por barril'; s.val = usd(v.v); s.cap = cap1(fmtDay(v.date)) + ' · ' + nm; s.heroCap = fmtDay(v.date, true);
+    if (v.other) s.lines.push({ l: on, v: usd(v.other[1]), t: on + ': ' + usd(v.other[1]) });
     if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: 'vs. día anterior', v: arrow(d) + nf(Math.abs(d), 2), t: arrow(d) + nf(Math.abs(d), 2) + ' vs. día anterior', heroOnly: true }); }
     s.spark = [v.spark, 'line'];
   }
@@ -1169,7 +1175,11 @@ function sheetInd(k) {
   if (k === 'imacec') h += '<p class="hint">' + (prefs.imacec === 'm'
     ? 'Variación respecto del mes anterior, calculada con la serie desestacionalizada del Banco Central. Esa serie se recalcula cada mes, así que los meses recientes pueden cambiar.'
     : 'Variación respecto del mismo mes del año anterior. El Banco Central revisa las cifras de meses recientes.') + '</p>';
-  if (k === 'petroleo') h += '<p class="hint">Brent es la referencia del mar del Norte; WTI, la de Estados Unidos. Son precios diarios que el Banco Central toma de fuentes internacionales, y llegan con uno o dos días de desfase.</p>';
+  if (k === 'petroleo') {
+    h += '<p class="hint">Brent es la referencia del mar del Norte; WTI, la de Estados Unidos. ' + (v && v.market
+      ? 'El último valor es el precio de mercado del día (OilPriceAPI); los anteriores son los precios diarios del Banco Central, que los publica con algunos días de atraso.'
+      : 'Son los precios diarios del Banco Central, que los publica con algunos días de atraso.') + '</p>';
+  }
   const bcch = k === 'petroleo' || (k === 'imacec' && prefs.imacec === 'm');
   h += '<p class="hint">Fuente: ' + (bcch ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : (apiUsed || 'findic.cl') + ', con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + '.</p>';
   h += prefs.hero === k
@@ -1263,6 +1273,7 @@ document.addEventListener('click', function (e) {
     savePrefs();
     t.parentNode.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); });
     if (name === 'imacec' || name === 'crudo') renderSheet();     // cambia también la cifra grande y la nota
+    if (name === 'crudo') render();
     changeRange();
     return;
   }

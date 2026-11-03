@@ -12,6 +12,9 @@ Series:
   datos/wti.json           Precio del petróleo WTI (dólares por barril), diario desde 2014.
                            Las dos de petróleo se buscan por su nombre la primera vez; después se usa el código
                            que quedó guardado en el archivo.
+                           El Banco Central publica el petróleo con unos días de atraso. Si existe el secreto
+                           OILPRICEAPI_KEY (clave gratuita de oilpriceapi.com), se agrega el precio de mercado de los
+                           días que el Banco Central aún no publica; cuando los publica, manda el del Banco Central.
 
 UF, dólar, IPC, TPM, Imacec en 12 meses y cobre no pasan por aquí: la app los lee de findic.cl. Al final, la tarea
 revisa que findic.cl responda y permita la lectura desde el navegador, y deja el resultado como nota.
@@ -242,7 +245,58 @@ def petroleo(tipo):
         raise Rechazo('la serie del petróleo %s llegó vacía' % tipo.upper())
     if codigo != guardado:
         aviso('notice', 'Petróleo %s: serie %s (%s).' % (tipo.upper(), codigo, nombre))
-    guardar(archivo, codigo, nombre or 'Precio del petróleo %s (dólares/barril)' % tipo.upper(), obs)
+    # Los días que el Banco Central aún no publica, con el precio de mercado (si hay clave de OilPriceAPI)
+    ultimo = obs[-1][0]
+    mercado = [m for m in mercado_guardado(archivo) if m[0] > ultimo]
+    hoy = precio_mercado(tipo)
+    if hoy and hoy[0] > ultimo:
+        mercado = [m for m in mercado if m[0] != hoy[0]] + [hoy]
+    mercado.sort()
+    guardar(archivo, codigo, nombre or 'Precio del petróleo %s (dólares/barril)' % tipo.upper(), obs + mercado,
+            {'mercado': [m[0] for m in mercado]} if mercado else None)
+
+
+OILPRICE = {'brent': 'BRENT_CRUDE_USD', 'wti': 'WTI_USD'}
+
+
+def mercado_guardado(nombre_archivo):
+    """Los precios de mercado guardados antes: los días marcados en «mercado»."""
+    try:
+        d = json.loads((DATOS / nombre_archivo).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return []
+    dias = set(d.get('mercado') or [])
+    return [o for o in d.get('obs') or [] if o[0] in dias]
+
+
+def precio_mercado(tipo):
+    """Último precio de OilPriceAPI, como [fecha en Chile, valor]. Sin clave, o si falla, None."""
+    clave_op = os.environ.get('OILPRICEAPI_KEY', '').strip()
+    if not clave_op:
+        return None
+    pedido = urllib.request.Request('https://api.oilpriceapi.com/v1/prices/latest?by_code=' + OILPRICE[tipo], headers={
+        'Authorization': 'Token ' + clave_op, 'Accept': 'application/json', 'User-Agent': 'indicadores (GitHub Actions)'})
+    try:
+        with urllib.request.urlopen(pedido, timeout=60) as r:
+            d = (json.loads(r.read().decode('utf-8')) or {}).get('data') or {}
+        precio = float(d.get('price'))
+        marca = str(d.get('as_of') or d.get('source_timestamp') or d.get('created_at') or '')
+        momento = datetime.datetime.fromisoformat(marca.replace('Z', '+00:00'))
+    except urllib.error.HTTPError as e:
+        aviso('warning', 'OilPriceAPI (%s): error HTTP %s%s.' % (tipo.upper(), e.code, ', revisa la clave OILPRICEAPI_KEY' if e.code in (401, 403) else ''))
+        return None
+    except Exception as e:  # noqa: BLE001
+        aviso('warning', 'OilPriceAPI (%s): no se pudo leer (%s).' % (tipo.upper(), type(e).__name__))
+        return None
+    if not (precio > 0):
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        momento = momento.astimezone(ZoneInfo('America/Santiago'))
+    except Exception:  # noqa: BLE001
+        momento = momento - datetime.timedelta(hours=3)
+    print('OilPriceAPI %s: %s al %s.' % (tipo.upper(), precio, momento.isoformat()))
+    return [momento.date().isoformat(), round(precio, 2)]
 
 
 # ---------- Revisión de findic.cl (la fuente de la app para el resto de los indicadores) ----------
