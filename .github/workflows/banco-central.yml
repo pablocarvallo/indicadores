@@ -1,10 +1,12 @@
-# Trae cada mañana la tasa promedio de créditos de consumo del Banco Central (datos/consumo.json).
-# Necesita los secretos BCCH_USER y BCCH_PASS (Settings → Secrets and variables → Actions).
+# Trae del Banco Central el Imacec desestacionalizado y el precio del petróleo (Brent y WTI) para la app,
+# dos veces al día, y revisa que findic.cl responda. Necesita los secretos BCCH_USER y BCCH_PASS
+# (Settings → Secrets and variables → Actions).
 name: Datos del Banco Central
 
 on:
   schedule:
     - cron: '17 11 * * *'   # 08:17 en Chile en horario de verano (07:17 en invierno)
+    - cron: '47 22 * * *'   # 19:47 en Chile en horario de verano, cuando ya están los precios del día
   workflow_dispatch:
 
 permissions:

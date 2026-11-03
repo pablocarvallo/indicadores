@@ -6,9 +6,15 @@ desde el iPhone: esta tarea corre en GitHub Actions (.github/workflows/banco-cen
 las credenciales guardadas como secretos del repositorio (BCCH_USER y BCCH_PASS). La app lee los archivos.
 
 Series:
-  datos/consumo.json       F022.CON.TIP.Z.NO.Z.M, tasa promedio de créditos de consumo, total (pesos), mensual.
   datos/imacec-desest.json Imacec desestacionalizado (índice), mensual. Con él la app calcula la variación
                            respecto del mes anterior. Si el código no es el esperado, se busca por su nombre.
+  datos/brent.json         Precio del petróleo Brent (dólares por barril), diario desde 2014.
+  datos/wti.json           Precio del petróleo WTI (dólares por barril), diario desde 2014.
+                           Las dos de petróleo se buscan por su nombre la primera vez; después se usa el código
+                           que quedó guardado en el archivo.
+
+UF, dólar, IPC, TPM, Imacec en 12 meses y cobre no pasan por aquí: la app los lee de findic.cl. Al final, la tarea
+revisa que findic.cl responda y permita la lectura desde el navegador, y deja el resultado como nota.
 
 Cada archivo solo cambia cuando cambia su serie (un mes nuevo o una revisión), para no llenar el repositorio
 de publicaciones iguales. Si una serie falla, las demás se guardan igual y la tarea avisa el problema.
@@ -87,8 +93,8 @@ def api(**params):
     return resp
 
 
-def leer_serie(codigo):
-    resp = api(function='GetSeries', timeseries=codigo, firstdate='2002-01-01', lastdate=datetime.date.today().isoformat())
+def leer_serie(codigo, desde='2002-01-01'):
+    resp = api(function='GetSeries', timeseries=codigo, firstdate=desde, lastdate=datetime.date.today().isoformat())
     serie = resp.get('Series') or {}
     obs = []
     for o in serie.get('Obs') or []:
@@ -129,6 +135,35 @@ def buscar_imacec_desest():
     return candidatas[0][2]
 
 
+_catalogo = {}
+
+
+def catalogo(frecuencia):
+    """Todas las series de una frecuencia (DAILY, MONTHLY…), con su código y título. Se pide una sola vez."""
+    if frecuencia not in _catalogo:
+        resp = api(function='SearchSeries', frequency=frecuencia)
+        _catalogo[frecuencia] = [(str(s.get('seriesId') or ''), sin_tildes(str(s.get('spanishTitle') or '')))
+                                 for s in resp.get('SeriesInfos') or []]
+    return _catalogo[frecuencia]
+
+
+def buscar(frecuencias, debe, no_debe=r'$^'):
+    """El primer código cuyo título tiene todas las palabras de «debe» y ninguna de «no_debe»."""
+    for f in frecuencias:
+        hallado = [(len(t), c, t) for c, t in catalogo(f) if all(d in t for d in debe) and not re.search(no_debe, t)]
+        if hallado:
+            hallado.sort()                                   # el título más corto: la serie principal
+            return hallado[0][1], f
+    raise Rechazo('no se encontró la serie «%s» entre las del Banco Central' % ' '.join(debe))
+
+
+def codigo_guardado(nombre_archivo):
+    try:
+        return json.loads((DATOS / nombre_archivo).read_text(encoding='utf-8')).get('serie') or ''
+    except (OSError, ValueError):
+        return ''
+
+
 def guardar(nombre_archivo, codigo, nombre, obs, extra=None):
     destino = DATOS / nombre_archivo
     anterior = None
@@ -150,16 +185,7 @@ def guardar(nombre_archivo, codigo, nombre, obs, extra=None):
     datos['obs'] = obs
     DATOS.mkdir(parents=True, exist_ok=True)
     destino.write_text(json.dumps(datos, ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf-8')
-    print('%s guardado: %d meses, último %s con %s.' % (nombre_archivo, len(obs), obs[-1][0], obs[-1][1]))
-
-
-# ---------- Tasa promedio de créditos de consumo ----------
-def consumo():
-    codigo = 'F022.CON.TIP.Z.NO.Z.M'
-    nombre, obs = leer_serie(codigo)
-    if not obs:
-        raise Rechazo('la serie %s llegó vacía' % codigo)
-    guardar('consumo.json', codigo, nombre or 'Tasa promedio de créditos de consumo, total (pesos)', obs)
+    print('%s guardado: %d datos, último %s con %s.' % (nombre_archivo, len(obs), obs[-1][0], obs[-1][1]))
 
 
 # ---------- Imacec desestacionalizado ----------
@@ -180,12 +206,51 @@ def imacec_desest():
     guardar('imacec-desest.json', codigo, nombre or 'Imacec desestacionalizado', obs)
 
 
+# ---------- Petróleo Brent y WTI ----------
+def petroleo(tipo):
+    archivo = tipo + '.json'
+    codigo = codigo_guardado(archivo)
+    nombre, obs = '', []
+    if codigo:
+        try:
+            nombre, obs = leer_serie(codigo, '2014-01-01')
+        except Rechazo:
+            obs = []
+    if not obs or tipo not in sin_tildes(nombre):
+        # Diaria si existe; si no, mensual. Fuera los futuros, promedios y variaciones.
+        codigo, frecuencia = buscar(['DAILY', 'MONTHLY'], ['petroleo', tipo], r'futuro|promedio|variaci|indice|spread|diferencial')
+        nombre, obs = leer_serie(codigo, '2014-01-01')
+        aviso('notice', 'Petróleo %s: se usa la serie %s (%s, %s).' % (tipo.upper(), codigo, nombre, frecuencia.lower()))
+    if not obs:
+        raise Rechazo('la serie del petróleo %s llegó vacía' % tipo.upper())
+    guardar(archivo, codigo, nombre or 'Precio del petróleo %s (dólares/barril)' % tipo.upper(), obs)
+
+
+# ---------- Revisión de findic.cl (la fuente de la app para el resto de los indicadores) ----------
+def revisar_findic():
+    pedido = urllib.request.Request('https://findic.cl/api/uf', headers={
+        'User-Agent': 'indicadores (GitHub Actions)', 'Origin': 'https://pablocarvallo.github.io'})
+    try:
+        with urllib.request.urlopen(pedido, timeout=30) as r:
+            permiso = r.headers.get('Access-Control-Allow-Origin') or ''
+            datos = json.loads(r.read().decode('utf-8', 'replace'))
+        ultimo = (datos.get('serie') or [{}])[0]
+        if permiso in ('*', 'https://pablocarvallo.github.io'):
+            aviso('notice', 'findic.cl responde y permite leerlo desde la app (UF %s: %s).' % (ultimo.get('fecha'), ultimo.get('valor')))
+        else:
+            aviso('warning', 'findic.cl responde, pero no permite leerlo desde el navegador (Access-Control-Allow-Origin: %s).' % (permiso or 'ausente'))
+    except Exception as e:  # noqa: BLE001
+        aviso('warning', 'findic.cl no responde (%s).' % type(e).__name__)
+
+
+tareas = [('Imacec desestacionalizado', imacec_desest), ('Petróleo Brent', lambda: petroleo('brent')), ('Petróleo WTI', lambda: petroleo('wti'))]
 fallas = []
-for nombre_tarea, tarea in [('Créditos de consumo', consumo), ('Imacec desestacionalizado', imacec_desest)]:
+for nombre_tarea, tarea in tareas:
     try:
         tarea()
     except Rechazo as e:
         fallas.append(nombre_tarea)
         aviso('warning', '%s: %s.' % (nombre_tarea, e))
-if len(fallas) == 2:
+revisar_findic()
+if len(fallas) == len(tareas):
     falla('No se pudo traer ninguna serie del Banco Central.')
