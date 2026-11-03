@@ -303,6 +303,61 @@ def precio_mercado(tipo):
     return [momento.date().isoformat(), round(precio, 2)]
 
 
+# ---------- IPC: variación mensual y en 12 meses ----------
+# Las publica el INE el día 8 de cada mes y el Banco Central las tiene el mismo día. La primera vez se buscan por
+# su nombre; después se usa el código que quedó guardado, mientras siga vigente.
+IPC = {'mensual': 'ipc-mensual.json', '12m': 'ipc-12m.json'}
+DOCE = r'12 meses|doce meses|anual'
+NO_IPC = (r'sin |subyacente|sae|volatil|bien|servicio|transable|alimento|energia|combustible|vivienda|transporte|'
+          r'division|producto|grupo|incidencia|ponderac|expectativ|encuesta|region|sector|acumulad|ipcx|ipp|ipm|ipe\b')
+
+
+def candidatas_ipc(cual):
+    out = []
+    for c, t in catalogo('MONTHLY'):
+        if not (re.search(r'\bipc\b', t) or 'precios al consumidor' in t) or 'variaci' not in t or re.search(NO_IPC, t):
+            continue
+        doce = bool(re.search(DOCE, t))
+        if (cual == '12m') != doce or (cual == 'mensual' and 'mensual' not in t):
+            continue
+        out.append((0 if c.startswith('F074') else 1, len(t), c, t))
+    out.sort()
+    return [(c, t) for _, _, c, t in out]
+
+
+def ipc(cual):
+    archivo = IPC[cual]
+    limite = (datetime.date.today() - datetime.timedelta(days=100)).isoformat()   # con datos de los últimos meses
+
+    def vigente(o):
+        return bool(o) and o[-1][0] >= limite
+
+    guardado = codigo_guardado(archivo)
+    nombre, obs, codigo = '', [], ''
+    if guardado:
+        try:
+            nombre, obs = leer_serie(guardado, '2000-01-01')
+            codigo = guardado
+        except Rechazo:
+            pass
+    if not vigente(obs):
+        cands = candidatas_ipc(cual)
+        aviso('notice', 'IPC %s: candidatas %s.' % (cual, '; '.join(c + ' «' + t + '»' for c, t in cands[:8]) or 'ninguna'))
+        nombre, obs, codigo = '', [], ''
+        for c, t in cands[:6]:
+            try:
+                n, o = leer_serie(c, '2000-01-01')
+            except Rechazo:
+                continue
+            if vigente(o) and len(o) >= 60:
+                nombre, obs, codigo = n, o, c
+                break
+        if not obs:
+            raise Rechazo('no se encontró una serie vigente del IPC (%s)' % cual)
+        aviso('notice', 'IPC %s: se usa la serie %s (%s); últimos datos %s.' % (cual, codigo, nombre, obs[-3:]))
+    guardar(archivo, codigo, nombre or 'IPC, variación ' + ('en 12 meses' if cual == '12m' else 'mensual'), obs)
+
+
 # ---------- Revisión de findic.cl (la fuente de la app para el resto de los indicadores) ----------
 def revisar_findic():
     pedido = urllib.request.Request('https://findic.cl/api/uf', headers={
@@ -320,7 +375,8 @@ def revisar_findic():
         aviso('warning', 'findic.cl no responde (%s).' % type(e).__name__)
 
 
-tareas = [('Imacec desestacionalizado', imacec_desest), ('Petróleo Brent', lambda: petroleo('brent')), ('Petróleo WTI', lambda: petroleo('wti'))]
+tareas = [('IPC mensual', lambda: ipc('mensual')), ('IPC en 12 meses', lambda: ipc('12m')),
+          ('Imacec desestacionalizado', imacec_desest), ('Petróleo Brent', lambda: petroleo('brent')), ('Petróleo WTI', lambda: petroleo('wti'))]
 fallas = []
 for nombre_tarea, tarea in tareas:
     try:
