@@ -18,7 +18,7 @@
 <!--STANDALONE:END-->
 <style>
 /* Concepto: el tablero de indicadores de Chile. Arriba la UF del día; abajo una tarjeta por indicador
-   (dólar, IPC, TPM, Imacec y tasa de créditos de consumo) con su último dato y la tendencia de 12 meses.
+   (dólar, IPC, TPM, Imacec, cobre y petróleo) con su último dato y la tendencia de 12 meses.
    Al tocar una tarjeta se abre su gráfico histórico (1, 5 o 10 años) con la tabla de los últimos valores. */
 /*DS:TOKENS:START*/
 /* ── Domésticas · sistema de diseño común (v1) ──────────────────────────────
@@ -508,11 +508,12 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const MESL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-const MI = 'https://mindicador.cl/api/';
-// Tasa promedio de créditos de consumo del Banco Central: su API pide usuario y clave, así que no se consulta desde el
-// iPhone. Una tarea de GitHub (.github/workflows/banco-central.yml) la lee cada día y la deja en datos/consumo.json.
-const BCCH_FILES = { consumo: 'datos/consumo.json', imacecde: 'datos/imacec-desest.json' };
-const CONSUMO_SERIE = 'F022.CON.TIP.Z.NO.Z.M';
+// UF, dólar, TPM, Imacec y cobre: findic.cl. Si no responde, mindicador.cl, que entrega lo mismo con el mismo formato.
+const APIS = [{ url: 'https://findic.cl/api/', name: 'findic.cl', wait: 12000 }, { url: 'https://mindicador.cl/api/', name: 'mindicador.cl', wait: 15000 }];
+const API_CODE = { cobre: 'libra_cobre' };
+// Imacec desestacionalizado y petróleo: del Banco Central. Su API pide usuario y clave, así que no se consulta desde el
+// iPhone. Una tarea de GitHub (.github/workflows/banco-central.yml) los lee dos veces al día y los deja en datos/.
+const BCCH_FILES = { imacecde: 'datos/imacec-desest.json', brent: 'datos/brent.json', wti: 'datos/wti.json' };
 const KEY_PREFS = 'indicadores-preferencias', KEY_STAMP = 'indicadores-lectura';
 const DATA_P = 'indicadores-datos:';      // copia local de cada indicador y año
 const FRESH = 6 * 3600 * 1000;           // los años recientes se vuelven a leer cada 6 horas
@@ -523,9 +524,10 @@ const IND = {
   ipc: { name: 'IPC', src: 'uf' },
   tpm: { name: 'Tasa de política monetaria', short: 'TPM', src: 'mi', kind: 'step' },
   imacec: { name: 'Imacec', src: 'mi', kind: 'bar' },
-  consumo: { name: 'Tasa promedio de créditos de consumo', short: 'Créditos de consumo', src: 'bcch', kind: 'line' }
+  cobre: { name: 'Precio del cobre', short: 'Cobre', src: 'mi', kind: 'line' },
+  petroleo: { name: 'Precio del petróleo', short: 'Petróleo', src: 'bcch', kind: 'line' }
 };
-const ORDER = ['uf', 'dolar', 'ipc', 'tpm', 'imacec', 'consumo'];   // el destacado sale de aquí y el resto va en tarjetas
+const ORDER = ['uf', 'dolar', 'ipc', 'tpm', 'imacec', 'cobre', 'petroleo'];   // el destacado sale de aquí y el resto va en tarjetas
 
 const I = {
   pin: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
@@ -554,6 +556,7 @@ function nf(v, d) {
   return (neg ? '−' : '') + parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + parts[1] : '');
 }
 function pesos(v, d) { return '$' + nf(v, d == null ? 2 : d); }
+function usd(v, d) { return 'US$' + nf(v, d == null ? 2 : d); }
 function pct(v, d) { return nf(v, d == null ? 1 : d) + '%'; }
 function signed(v, d, unit) { return (v > 0 && +Math.abs(v).toFixed(d) !== 0 ? '+' : '') + nf(v, d) + (unit || ''); }
 function num(v) {
@@ -571,9 +574,10 @@ function toast(msg) { toastEl.textContent = msg; toastEl.hidden = false; clearTi
 /* ---------- Preferencias y copia local ---------- */
 function readJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
 function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
-const prefs = Object.assign({ range: 5, ipc: '12m', imacec: '12m', hero: 'uf' }, readJSON(KEY_PREFS) || {});
+const prefs = Object.assign({ range: 5, ipc: '12m', imacec: '12m', crudo: 'brent', hero: 'uf' }, readJSON(KEY_PREFS) || {});
 if (RANGES.indexOf(prefs.range) < 0) prefs.range = 5;
 if (ORDER.indexOf(prefs.hero) < 0) prefs.hero = 'uf';
+if (prefs.crudo !== 'wti') prefs.crudo = 'brent';
 function savePrefs() { writeJSON(KEY_PREFS, prefs); }
 
 /* ---------- Lectura ---------- */
@@ -602,21 +606,32 @@ function isFresh(e, year) {
   // Los años cerrados se leen una sola vez; el año anterior y el actual, cada 6 horas (el Imacec se revisa)
   return year < cur - 1 ? e.t > utcOf(year + 1 + '-02-15') : Date.now() - e.t < FRESH;
 }
-async function fetchJSON(url) {
+async function fetchJSON(url, wait) {
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
-  const t = ctl ? setTimeout(function () { ctl.abort(); }, 20000) : 0;
+  const t = ctl ? setTimeout(function () { ctl.abort(); }, wait || 20000) : 0;
   try {
     const r = await fetch(url, { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return await r.json();
   } finally { clearTimeout(t); }
 }
-// mindicador.cl: la serie viene de la más nueva a la más antigua, con la fecha en hora UTC de la medianoche chilena
+// findic.cl y mindicador.cl: la serie viene de la más nueva a la más antigua; la fecha, como «2026-11-03» o con hora UTC.
+// Se prueba la primera fuente que respondió la última vez y, si falla, la otra.
+let apiFirst = 0, apiUsed = '';
 async function getMi(code, year) {
-  const j = await fetchJSON(MI + code + '/' + year);
-  return (Array.isArray(j && j.serie) ? j.serie : []).map(function (p) { return [String(p.fecha).slice(0, 10), +p.valor]; })
-    .filter(function (p) { return validDate(p[0]) && isFinite(p[1]); })
-    .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
+  let last = null;
+  for (let n = 0; n < APIS.length; n++) {
+    const i = (apiFirst + n) % APIS.length, api = APIS[i];
+    try {
+      const j = await fetchJSON(api.url + (API_CODE[code] || code) + '/' + year, api.wait);
+      if (!j || !Array.isArray(j.serie)) throw new Error('formato');
+      apiFirst = i; apiUsed = api.name;
+      return j.serie.map(function (p) { return [String(p.fecha).slice(0, 10), +p.valor]; })
+        .filter(function (p) { return validDate(p[0]) && isFinite(p[1]); })
+        .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
+    } catch (e) { last = e; }
+  }
+  throw last || new Error('red');
 }
 // Banco Central: el archivo que deja la tarea de GitHub. Se lee directo del repositorio (siempre al día, aunque
 // la página aún no se haya vuelto a publicar) y, si no se puede, desde la misma página.
@@ -666,7 +681,7 @@ function yearsFor(range) {
   return ys;
 }
 // Fuentes de cada indicador. El Imacec usa además el índice desestacionalizado, para la variación mensual.
-const SOURCE = { uf: ['uf'], dolar: ['dolar'], ipc: ['uf'], tpm: ['tpm'], imacec: ['imacec', 'imacecde'], consumo: ['consumo'] };
+const SOURCE = { uf: ['uf'], dolar: ['dolar'], ipc: ['uf'], tpm: ['tpm'], imacec: ['imacec', 'imacecde'], cobre: ['cobre'], petroleo: ['brent', 'wti'] };
 async function ensure(inds, range, force) {
   const tasks = [], cur = new Date().getFullYear();
   const codes = [];
@@ -701,7 +716,6 @@ function bcchSeries(code, fromYear) {
   const e = store[code] && store[code].all;
   return e && e.d && Array.isArray(e.d.obs) ? e.d.obs.filter(function (p) { return +p[0].slice(0, 4) >= fromYear; }) : [];
 }
-function consumoSeries(fromYear) { return bcchSeries('consumo', fromYear); }
 // Imacec, variación respecto del mes anterior: del índice desestacionalizado, con un decimal como lo informa el Banco Central
 function imacecMonthly(fromYear) {
   const s = bcchSeries('imacecde', fromYear - 1), out = [];
@@ -780,11 +794,17 @@ function view(k) {
     const m = mm.filter(function (p) { return p[0] === a[0]; })[0] || null;
     return { v: a[1], date: a[0], m: m ? m[1] : null, mLast: mm.length ? mm[mm.length - 1] : null, spark: s.slice(-12) };
   }
-  if (k === 'consumo') {
-    const s = consumoSeries(cur - 3);
+  if (k === 'cobre') {
+    const s = series('cobre', cur - 2);
     if (!s.length) return null;
     const a = s[s.length - 1], b = s[s.length - 2];
-    return { v: a[1], date: a[0], prev: b ? b[1] : null, spark: s.slice(-12) };
+    return { v: a[1], date: a[0], prev: b ? b[1] : null, spark: since(s, 1) };
+  }
+  if (k === 'petroleo') {
+    const s = bcchSeries('brent', cur - 2), w = bcchSeries('wti', cur - 2);
+    if (!s.length) return null;
+    const a = s[s.length - 1], b = s[s.length - 2], wl = w.length ? w[w.length - 1] : null;
+    return { v: a[1], date: a[0], prev: b ? b[1] : null, wti: wl, spark: since(s, 1) };
   }
   return null;
 }
@@ -988,17 +1008,22 @@ function summary(k) {
     s.hero = 'Imacec de ' + fmtMonth(v.date); s.val = pct(v.v); s.cap = cap1(fmtMonth(v.date)) + ' · 12 meses'; s.heroCap = 'En 12 meses';
     if (v.m != null) s.lines.push({ l: 'Mensual', v: signed(v.m, 1, '%'), t: 'Mensual: ' + signed(v.m, 1, '%') + ' (desest.)' });
     s.spark = [v.spark, 'bar'];
-  } else if (k === 'consumo') {
-    s.val = pct(v.v, 2); s.cap = cap1(fmtMonth(v.date, true)) + ' · tasa anual'; s.heroCap = cap1(fmtMonth(v.date, true));
-    if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: 'vs. mes anterior', v: arrow(d) + nf(Math.abs(d), 2) + ' pp', t: arrow(d) + nf(Math.abs(d), 2) + ' pp vs. mes anterior' }); }
+  } else if (k === 'cobre') {
+    s.hero = 'Cobre, dólares por libra'; s.val = usd(v.v); s.cap = cap1(fmtDay(v.date)) + ' · por libra'; s.heroCap = fmtDay(v.date, true);
+    if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: 'vs. día anterior', v: arrow(d) + nf(Math.abs(d), 2), t: arrow(d) + nf(Math.abs(d), 2) + ' vs. día anterior' }); }
+    s.spark = [v.spark, 'line'];
+  } else if (k === 'petroleo') {
+    s.hero = 'Petróleo Brent, dólares por barril'; s.val = usd(v.v); s.cap = cap1(fmtDay(v.date)) + ' · Brent'; s.heroCap = fmtDay(v.date, true);
+    if (v.wti) s.lines.push({ l: 'WTI', v: usd(v.wti[1]), t: 'WTI: ' + usd(v.wti[1]) });
+    if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: 'vs. día anterior', v: arrow(d) + nf(Math.abs(d), 2), t: arrow(d) + nf(Math.abs(d), 2) + ' vs. día anterior', heroOnly: true }); }
     s.spark = [v.spark, 'line'];
   }
   return s;
 }
 function missingText(s) {
-  if (s.k === 'consumo' && s.fail === 'sin-datos') return 'Falta conectar la API del Banco Central.';
-  if (s.k === 'consumo') return s.fail ? 'No se pudo leer el dato del Banco Central.' : 'Leyendo…';
-  return s.fail ? 'No se pudo leer. Revisa la conexión.' : 'Leyendo…';
+  if (IND[s.k].src === 'bcch' && s.fail === 'sin-datos') return 'Llega con la próxima actualización desde el Banco Central.';
+  if (IND[s.k].src === 'bcch') return s.fail ? 'No se pudo leer el dato del Banco Central.' : 'Leyendo…';
+  return s.fail ? 'No se pudo leer findic.cl. Revisa la conexión.' : 'Leyendo…';
 }
 function renderHero() {
   const s = summary(prefs.hero);
@@ -1022,9 +1047,7 @@ function renderTiles() {
     const s = summary(k), wide = i === list.length - 1 && list.length % 2 === 1;
     let inner;
     if (!s.v) {
-      inner = s.k === 'consumo' && s.fail === 'sin-datos'
-        ? '<span class="t-msg">Tasa promedio del Banco Central. Falta conectar tu cuenta de la API del Banco Central.</span><span class="t-cta">Cómo conectarla</span>'
-        : '<span class="t-val dim">' + (s.fail ? '—' : '…') + '</span><span class="t-cap">' + esc(missingText(s)) + '</span>';
+      inner = '<span class="t-val dim">' + (s.fail ? '—' : '…') + '</span><span class="t-cap">' + esc(missingText(s)) + '</span>';
     } else {
       const first = s.lines.filter(function (x) { return !x.heroOnly; })[0];
       const text = '<span class="t-val' + (!wide && s.val.length >= 10 ? ' long' : '') + '">' + s.val + '</span><span class="t-cap">' + esc(s.cap) + '</span>' + (first ? '<span class="t-delta">' + esc(first.t) + '</span>' : '');
@@ -1050,7 +1073,7 @@ function renderStamp() {
 async function refresh(manual) {
   if (loading) return;
   loading = true; renderStamp();
-  await ensure(['uf', 'dolar', 'ipc', 'tpm', 'imacec', 'consumo'], 2, !!manual);
+  await ensure(['uf', 'dolar', 'ipc', 'tpm', 'imacec', 'cobre', 'petroleo'], 2, !!manual);
   // La TPM cambia poco: para saber desde cuándo rige, se miran más años
   await ensure(['tpm'], 4, false);
   loading = false;
@@ -1101,7 +1124,8 @@ function detail(k) {
     const m = prefs.imacec === 'm';
     return { pts: since(m ? imacecMonthly(from) : series('imacec', from), range), kind: 'bar', fmt: function (v) { return m ? signed(v, 1, '%') : pct(v); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'none' };
   }
-  if (k === 'consumo') return { pts: since(consumoSeries(from), range), kind: 'line', fmt: function (v) { return pct(v, 2); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'pp' };
+  if (k === 'cobre') return { pts: since(series('cobre', from), range), kind: 'line', fmt: function (v) { return usd(v); }, xfmt: dayFmt, ax: function (v, d) { return nf(v, d); }, diff: 'pct' };
+  if (k === 'petroleo') return { pts: since(bcchSeries(prefs.crudo, from), range), kind: 'line', fmt: function (v) { return usd(v); }, xfmt: dayFmt, ax: function (v, d) { return nf(v, d); }, diff: 'pct' };
 }
 function sheetInd(k) {
   const v = view(k), meta = IND[k];
@@ -1111,9 +1135,9 @@ function sheetInd(k) {
   if (k === 'ipc') h += '<p class="sub">Índice de Precios al Consumidor, variación en %</p>';
   if (k === 'tpm') h += '<p class="sub">Banco Central de Chile</p>';
   if (k === 'imacec') h += '<p class="sub">Índice mensual de actividad económica</p>';
-  if (k === 'consumo') h += '<p class="sub">Banco Central de Chile · total, en pesos, % anual</p>';
+  if (k === 'cobre') h += '<p class="sub">Cobre refinado en la Bolsa de Metales de Londres, dólares por libra</p>';
+  if (k === 'petroleo') h += '<p class="sub">Dólares por barril</p>';
   h += '</div>';
-  if (k === 'consumo' && !v && failed.consumo === 'sin-datos') return h + bcchHelp();
   if (v) {
     let big = '', cap = '';
     if (k === 'uf') { big = pesos(v.v); cap = 'hoy'; }
@@ -1124,11 +1148,16 @@ function sheetInd(k) {
       if (prefs.imacec === 'm') { big = v.mLast ? signed(v.mLast[1], 1, '%') : '—'; cap = v.mLast ? fmtMonth(v.mLast[0], true) + ' · respecto del mes anterior' : 'sin dato mensual'; }
       else { big = pct(v.v); cap = fmtMonth(v.date, true) + ' · en 12 meses'; }
     }
-    if (k === 'consumo') { big = pct(v.v, 2); cap = fmtMonth(v.date, true); }
+    if (k === 'cobre') { big = usd(v.v); cap = fmtDay(v.date, true) + ' · por libra'; }
+    if (k === 'petroleo') {
+      const s = bcchSeries(prefs.crudo, new Date().getFullYear() - 1), a = s[s.length - 1];
+      big = a ? usd(a[1]) : '—'; cap = a ? fmtDay(a[0], true) + ' · ' + (prefs.crudo === 'wti' ? 'WTI' : 'Brent') + ', por barril' : 'sin datos';
+    }
     h += '<div class="p-big"><b>' + big + '</b><span>' + esc(cap) + '</span></div>';
   }
   if (k === 'ipc') h += seg('ipc', [['12m', 'En 12 meses'], ['m', 'Mensual']], prefs.ipc);
   if (k === 'imacec') h += seg('imacec', [['12m', 'En 12 meses'], ['m', 'Mensual']], prefs.imacec);
+  if (k === 'petroleo') h += seg('crudo', [['brent', 'Brent'], ['wti', 'WTI']], prefs.crudo);
   if (k === 'imacec' && prefs.imacec === 'm' && !bcchSeries('imacecde', 2000).length) {
     h += '<p class="note">' + (failed.imacecde === 'sin-datos' ? 'La variación mensual llega con la próxima actualización desde el Banco Central.' : failed.imacecde ? 'No se pudo leer el Imacec desestacionalizado.' : 'Leyendo el Imacec desestacionalizado…') + '</p>';
   }
@@ -1140,13 +1169,9 @@ function sheetInd(k) {
   if (k === 'imacec') h += '<p class="hint">' + (prefs.imacec === 'm'
     ? 'Variación respecto del mes anterior, calculada con la serie desestacionalizada del Banco Central. Esa serie se recalcula cada mes, así que los meses recientes pueden cambiar.'
     : 'Variación respecto del mismo mes del año anterior. El Banco Central revisa las cifras de meses recientes.') + '</p>';
-  if (k === 'consumo') {
-    const e = store.consumo && store.consumo.all, at = e && e.d && e.d.at ? Date.parse(e.d.at) : 0;
-    h += '<p class="hint">Tasa de interés promedio de los créditos de consumo del sistema financiero, en pesos (serie ' + CONSUMO_SERIE + '). Es un dato mensual: el último mes aparece cuando el Banco Central lo publica.' +
-      (at ? ' La serie cambió por última vez ' + esc(fmtWhen(at)) + '.' : '') + '</p>';
-  }
-  const bcch = k === 'consumo' || (k === 'imacec' && prefs.imacec === 'm');
-  h += '<p class="hint">Fuente: ' + (bcch ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : 'mindicador.cl, con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + '.</p>';
+  if (k === 'petroleo') h += '<p class="hint">Brent es la referencia del mar del Norte; WTI, la de Estados Unidos. Son precios diarios que el Banco Central toma de fuentes internacionales, y llegan con uno o dos días de desfase.</p>';
+  const bcch = k === 'petroleo' || (k === 'imacec' && prefs.imacec === 'm');
+  h += '<p class="hint">Fuente: ' + (bcch ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : (apiUsed || 'findic.cl') + ', con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + '.</p>';
   h += prefs.hero === k
     ? '<p class="hint pinned">' + I.pin + 'Destacado arriba en la pantalla principal.</p>'
     : '<button type="button" class="btn tonal block" data-act="hero" data-k="' + k + '">' + I.pin + 'Destacar arriba</button>';
@@ -1165,7 +1190,7 @@ function fillRange() {
       d.pts.forEach(function (p) { if (p[1] < mn[1]) mn = p; if (p[1] > mx[1]) mx = p; });
       const a = d.pts[0][1], b = d.pts[d.pts.length - 1][1];
       const ch = d.diff === 'pct' ? signed((b / a - 1) * 100, 1, '%') : d.diff === 'pp' ? signed(b - a, 2, ' pp') : '';
-      const when = function (p) { return d.kind === 'bar' || k === 'ipc' || k === 'consumo' ? fmtMonth(p[0], true) : fmtDay(p[0], true); };
+      const when = function (p) { return d.kind === 'bar' || k === 'ipc' ? fmtMonth(p[0], true) : fmtDay(p[0], true); };
       st.innerHTML = '<div class="stat"><small>Mínimo</small><b>' + esc(d.fmt(mn[1])) + '</b><em>' + esc(when(mn)) + '</em></div>' +
         '<div class="stat"><small>Máximo</small><b>' + esc(d.fmt(mx[1])) + '</b><em>' + esc(when(mx)) + '</em></div>' +
         (ch ? '<div class="stat"><small>Cambio</small><b>' + ch + '</b><em>en ' + (prefs.range === 1 ? '1 año' : prefs.range + ' años') + '</em></div>'
@@ -1190,7 +1215,7 @@ async function changeRange() {
 }
 // Pasos para conectar la API del Banco Central (una sola vez, desde GitHub)
 function bcchHelp() {
-  return '<p class="note">La API del Banco Central pide usuario y clave. Para no guardarlos en el iPhone, una tarea de GitHub trae el dato cada mañana y lo deja en el repositorio de esta app.</p>' +
+  return '<p class="note">La API del Banco Central pide usuario y clave. Para no guardarlos en el iPhone, una tarea de GitHub trae los datos dos veces al día y los deja en el repositorio de esta app.</p>' +
     '<ol class="steps">' +
     '<li>Crea tu cuenta gratuita y activa las credenciales en <a href="https://si3.bcentral.cl/Siete/es/Siete/API" target="_blank" rel="noopener">si3.bcentral.cl/Siete/es/Siete/API</a>.</li>' +
     '<li>En GitHub, abre el repositorio <b>indicadores</b> → Settings → Secrets and variables → Actions, y crea dos secretos: <b>BCCH_USER</b> (tu correo) y <b>BCCH_PASS</b> (la clave de la API).</li>' +
@@ -1198,7 +1223,9 @@ function bcchHelp() {
     '<li>Vuelve aquí y actualiza.</li></ol>';
 }
 function sheetSettings() {
-  const e = store.consumo && store.consumo.all, at = e && e.d && e.d.at ? Date.parse(e.d.at) : 0;
+  let at = 0;
+  Object.keys(BCCH_FILES).forEach(function (c) { const e = store[c] && store[c].all, x = e && e.d && e.d.at ? Date.parse(e.d.at) : 0; if (x > at) at = x; });
+  const none = Object.keys(BCCH_FILES).every(function (c) { return failed[c] === 'sin-datos'; });
   return '<div><h2>Ajustes</h2><p class="sub">Los datos quedan guardados en este iPhone para verlos sin conexión.</p></div>' +
     '<h3 class="grp">Destacado arriba</h3><ul class="list" role="radiogroup" aria-label="Indicador destacado arriba">' +
     ORDER.map(function (k) {
@@ -1206,13 +1233,13 @@ function sheetSettings() {
       return '<li><button type="button" class="opt" role="radio" aria-checked="' + on + '" data-act="hero" data-k="' + k + '"><span>' + esc(IND[k].name) + '</span>' + (on ? I.check : '') + '</button></li>';
     }).join('') + '</ul>' +
     '<h3 class="grp">Fuentes</h3><ul class="list">' +
-    kv('UF, dólar, TPM e Imacec', 'mindicador.cl') +
+    kv('UF, dólar, TPM, Imacec y cobre', esc(apiUsed || 'findic.cl')) +
     kv('IPC', 'Calculado con la UF') +
-    kv('Imacec mensual', 'Banco Central') +
-    kv('Créditos de consumo', 'Banco Central') + '</ul>' +
+    kv('Imacec mensual y petróleo', 'Banco Central') + '</ul>' +
+    '<p class="hint">Si findic.cl no responde, la app usa mindicador.cl, que entrega los mismos datos.</p>' +
     '<h3 class="grp">API del Banco Central</h3>' +
-    (at ? '<p class="hint">Conectada. La tarea de GitHub revisa el Banco Central cada mañana; la serie cambió por última vez ' + esc(fmtWhen(at)) + '.</p>'
-        : failed.consumo === 'sin-datos' ? bcchHelp() : '<p class="hint">Aún no se ha leído el dato del Banco Central.</p>');
+    (at ? '<p class="hint">Conectada. La tarea de GitHub revisa el Banco Central dos veces al día; los datos cambiaron por última vez ' + esc(fmtWhen(at)) + '.</p>'
+        : none ? bcchHelp() : '<p class="hint">Aún no se han leído los datos del Banco Central.</p>');
 }
 function renderSheet() {
   const p = $('panel');
@@ -1232,9 +1259,10 @@ document.addEventListener('click', function (e) {
     if (name === 'range') prefs.range = +v;
     if (name === 'ipc') prefs.ipc = v;
     if (name === 'imacec') prefs.imacec = v;
+    if (name === 'crudo') prefs.crudo = v === 'wti' ? 'wti' : 'brent';
     savePrefs();
     t.parentNode.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); });
-    if (name === 'imacec') renderSheet();     // cambia también la cifra grande y la nota
+    if (name === 'imacec' || name === 'crudo') renderSheet();     // cambia también la cifra grande y la nota
     changeRange();
     return;
   }
@@ -1263,8 +1291,8 @@ document.addEventListener('visibilitychange', function () { if (document.visibil
 // Primero lo guardado; luego, los datos nuevos
 (function warm() {
   const cur = new Date().getFullYear();
-  ['uf', 'dolar', 'tpm', 'imacec'].forEach(function (c) { for (let y = cur - 4; y <= cur + 1; y++) cached(c, y); });
-  cached('consumo', 'all'); cached('imacecde', 'all');
+  ['uf', 'dolar', 'tpm', 'imacec', 'cobre'].forEach(function (c) { for (let y = cur - 4; y <= cur + 1; y++) cached(c, y); });
+  Object.keys(BCCH_FILES).forEach(function (c) { cached(c, 'all'); });
 })();
 render();
 refresh(false);
