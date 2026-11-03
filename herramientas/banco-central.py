@@ -8,11 +8,12 @@ las credenciales guardadas como secretos del repositorio (BCCH_USER y BCCH_PASS)
 Series:
   datos/imacec-desest.json Imacec desestacionalizado (índice), mensual. Con él la app calcula la variación
                            respecto del mes anterior. Si el código no es el esperado, se busca por su nombre.
-  datos/brent.json         Precio del petróleo Brent (dólares por barril), diario desde 2014.
   datos/wti.json           Precio del petróleo WTI (dólares por barril), diario desde 2014.
+  datos/brent.json         Precio del petróleo Brent (dólares por barril), mensual desde 2014.
                            Las dos de petróleo se buscan por su nombre la primera vez; después se usa el código
                            que quedó guardado en el archivo.
-                           El Banco Central publica el petróleo con unos días de atraso. Si existe el secreto
+                           El Banco Central tiene el WTI diario y el Brent solo mensual. Publica el WTI con unos
+                           días de atraso. Si existe el secreto
                            OILPRICEAPI_KEY (clave gratuita de oilpriceapi.com), se agrega el precio de mercado de los
                            días que el Banco Central aún no publica; cuando los publica, manda el del Banco Central.
 
@@ -210,16 +211,16 @@ def imacec_desest():
 
 
 # ---------- Petróleo Brent y WTI ----------
-# Códigos de las series diarias (el WTI se confirmó por su nombre; el Brent sigue el mismo patrón)
-DIARIOS = {'brent': 'F019.PPB.PRE.41AB.D', 'wti': 'F019.PPB.PRE.41B.D'}
+# Código de la serie diaria del WTI (confirmado por su nombre). El Banco Central no tiene Brent diario: se usa el mensual.
+DIARIOS = {'wti': 'F019.PPB.PRE.41B.D'}
 
 
 def petroleo(tipo):
     archivo = tipo + '.json'
     guardado = codigo_guardado(archivo)
-    # Primero la serie diaria; la mensual solo si no hay diaria
+    # Primero la serie diaria; si no hay, la que quedó guardada. La búsqueda por nombre, solo si nada de eso responde.
     codigos = []
-    for c in [guardado if guardado.endswith('.D') else '', DIARIOS[tipo]]:
+    for c in [guardado if guardado.endswith('.D') else '', DIARIOS.get(tipo, ''), guardado]:
         if c and c not in codigos:
             codigos.append(c)
     nombre, obs, codigo = '', [], ''
@@ -245,18 +246,21 @@ def petroleo(tipo):
         raise Rechazo('la serie del petróleo %s llegó vacía' % tipo.upper())
     if codigo != guardado:
         aviso('notice', 'Petróleo %s: serie %s (%s).' % (tipo.upper(), codigo, nombre))
-    # Los días que el Banco Central aún no publica, con el precio de mercado (si hay clave de OilPriceAPI)
+    # Los días que el Banco Central aún no publica, con el precio de mercado (si hay clave de OilPriceAPI).
+    # Solo sobre una serie diaria: a una mensual no se le mezclan precios de un día.
     ultimo = obs[-1][0]
-    mercado = [m for m in mercado_guardado(archivo) if m[0] > ultimo]
-    hoy = precio_mercado(tipo)
-    if hoy and hoy[0] > ultimo:
-        mercado = [m for m in mercado if m[0] != hoy[0]] + [hoy]
-    mercado.sort()
+    mercado = []
+    if codigo.endswith('.D'):
+        mercado = [m for m in mercado_guardado(archivo) if m[0] > ultimo]
+        hoy = precio_mercado(tipo)
+        if hoy and hoy[0] > ultimo:
+            mercado = [m for m in mercado if m[0] != hoy[0]] + [hoy]
+        mercado.sort()
     guardar(archivo, codigo, nombre or 'Precio del petróleo %s (dólares/barril)' % tipo.upper(), obs + mercado,
             {'mercado': [m[0] for m in mercado]} if mercado else None)
 
 
-OILPRICE = {'brent': 'BRENT_CRUDE_USD', 'wti': 'WTI_USD'}
+OILPRICE = {'wti': 'WTI_USD', 'brent': 'BRENT_CRUDE_USD'}
 
 
 def mercado_guardado(nombre_archivo):

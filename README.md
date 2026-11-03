@@ -12,7 +12,7 @@ Tablero de indicadores de Chile para el iPhone: UF, dólar observado, IPC, tasa 
   - **TPM**: tasa vigente, desde cuándo rige y la tasa anterior.
   - **Imacec**: variación en 12 meses y variación mensual (respecto del mes anterior, con la serie desestacionalizada).
   - **Cobre**: precio del día en dólares por libra y cambio respecto del día anterior.
-  - **Petróleo**: Brent o WTI (se elige en el detalle), en dólares por barril, con el otro como dato secundario.
+  - **Petróleo**: WTI diario en dólares por barril, con el Brent mensual como dato secundario (en el detalle se puede ver uno u otro).
 - **Detalle**: al tocar una tarjeta se abre el gráfico histórico de 1, 5 o 10 años. Al pasar el dedo sobre el gráfico se ve el valor de cada fecha. Además muestra el mínimo, el máximo, el cambio del periodo y una tabla con los últimos valores. El IPC y el Imacec se pueden ver en 12 meses o mensual.
 - **Sin conexión**: los datos quedan guardados en el iPhone.
 
@@ -22,8 +22,9 @@ Tablero de indicadores de Chile para el iPhone: UF, dólar observado, IPC, tasa 
 - **IPC**: se calcula con la UF. Entre el día 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior, así que el IPC de un mes es la UF del día 9 de dos meses después dividida por la del día 9 del mes siguiente. El dato mensual coincide con el del INE. El de 12 meses compone las variaciones mensuales y puede diferir en una décima del oficial.
 - **Imacec mensual y petróleo**: Banco Central de Chile. La API del Banco Central pide usuario y clave, así que no se consulta desde el iPhone. Una tarea de GitHub (`.github/workflows/banco-central.yml`) corre tres veces al día con `herramientas/banco-central.py` y deja las series en `datos/`:
   - `datos/imacec-desest.json`: Imacec desestacionalizado (`F032.IMC.IND.Z.Z.EP18.Z.Z.1.M`), para la variación mensual.
-  - `datos/brent.json` y `datos/wti.json`: precio diario del petróleo Brent y WTI desde 2014 (`F019.PPB.PRE.41AB.D` y `F019.PPB.PRE.41B.D`; si no responden, se buscan por su nombre).
-- **Petróleo del día**: el Banco Central publica el petróleo con algunos días de atraso. Con el secreto opcional `OILPRICEAPI_KEY` (clave gratuita de [oilpriceapi.com](https://www.oilpriceapi.com), 50 consultas al día), la tarea agrega el precio de mercado de los días que el Banco Central aún no publica; cuando los publica, manda el del Banco Central. La tarea usa 6 consultas al día.
+  - `datos/wti.json`: precio diario del petróleo WTI desde 2014 (`F019.PPB.PRE.41B.D`).
+  - `datos/brent.json`: precio del petróleo Brent desde 2014 (`F019.PPB.PRE.41AB.M`). El Banco Central no tiene Brent diario, solo el promedio mensual.
+- **Petróleo del día**: el Banco Central publica el WTI con algunos días de atraso. Con el secreto opcional `OILPRICEAPI_KEY` (clave gratuita de [oilpriceapi.com](https://www.oilpriceapi.com), 50 consultas al día), la tarea agrega al WTI el precio de mercado de los días que el Banco Central aún no publica; cuando los publica, manda el del Banco Central. La tarea usa 3 consultas al día.
 - Al final de cada corrida, la tarea revisa que findic.cl responda y permita la lectura desde el navegador, y lo deja como nota en el resumen.
 
 ## Conectar las fuentes (una vez)

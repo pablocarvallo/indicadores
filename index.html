@@ -574,10 +574,11 @@ function toast(msg) { toastEl.textContent = msg; toastEl.hidden = false; clearTi
 /* ---------- Preferencias y copia local ---------- */
 function readJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
 function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
-const prefs = Object.assign({ range: 5, ipc: '12m', imacec: '12m', crudo: 'brent', hero: 'uf' }, readJSON(KEY_PREFS) || {});
+const prefs = Object.assign({ range: 5, ipc: '12m', imacec: '12m', crudo: 'wti', hero: 'uf' }, readJSON(KEY_PREFS) || {});
 if (RANGES.indexOf(prefs.range) < 0) prefs.range = 5;
 if (ORDER.indexOf(prefs.hero) < 0) prefs.hero = 'uf';
-if (prefs.crudo !== 'wti') prefs.crudo = 'brent';
+if (prefs.crudoV !== 2) { prefs.crudo = 'wti'; prefs.crudoV = 2; }   // desde ahora el WTI va primero: es la serie diaria
+if (prefs.crudo !== 'brent') prefs.crudo = 'wti';
 function savePrefs() { writeJSON(KEY_PREFS, prefs); }
 
 /* ---------- Lectura ---------- */
@@ -650,7 +651,7 @@ async function getBcch(code) {
       const obs = (Array.isArray(j && j.obs) ? j.obs : []).map(function (p) { return [String(p[0]), num(p[1])]; })
         .filter(function (p) { return validDate(p[0]) && isFinite(p[1]); })
         .sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
-      return { obs: obs, at: String((j && j.actualizado) || ''), nombre: String((j && j.nombre) || ''),
+      return { obs: obs, at: String((j && j.actualizado) || ''), nombre: String((j && j.nombre) || ''), serie: String((j && j.serie) || ''),
         mercado: Array.isArray(j && j.mercado) ? j.mercado.map(String) : [] };
     } catch (e) { last = e; }
   }
@@ -713,6 +714,8 @@ function series(code, fromYear) {
   }
   return out;
 }
+// Una serie del Banco Central es mensual si su código termina en «.M» (por ejemplo, el Brent)
+function bcchMonthly(code) { const e = store[code] && store[code].all; return !!(e && e.d && /\.M$/.test(String(e.d.serie || ''))); }
 function bcchSeries(code, fromYear) {
   const e = store[code] && store[code].all;
   return e && e.d && Array.isArray(e.d.obs) ? e.d.obs.filter(function (p) { return +p[0].slice(0, 4) >= fromYear; }) : [];
@@ -809,7 +812,8 @@ function view(k) {
     if (!s.length) return null;
     const a = s[s.length - 1], b = s[s.length - 2], ol = w.length ? w[w.length - 1] : null;
     const e = store[name] && store[name].all, mk = e && e.d && Array.isArray(e.d.mercado) ? e.d.mercado : [];
-    return { v: a[1], date: a[0], prev: b ? b[1] : null, crudo: name, other: ol, spark: since(s, 1), market: mk.indexOf(a[0]) >= 0 };
+    return { v: a[1], date: a[0], prev: b ? b[1] : null, crudo: name, other: ol, otherCode: name === main ? other : main,
+      monthly: bcchMonthly(name), spark: bcchMonthly(name) ? s.slice(-12) : since(s, 1), market: mk.indexOf(a[0]) >= 0 };
   }
   return null;
 }
@@ -1019,9 +1023,12 @@ function summary(k) {
     s.spark = [v.spark, 'line'];
   } else if (k === 'petroleo') {
     const nm = v.crudo === 'wti' ? 'WTI' : 'Brent', on = v.crudo === 'wti' ? 'Brent' : 'WTI';
-    s.hero = 'Petróleo ' + nm + ', dólares por barril'; s.val = usd(v.v); s.cap = cap1(fmtDay(v.date)) + ' · ' + nm; s.heroCap = fmtDay(v.date, true);
-    if (v.other) s.lines.push({ l: on, v: usd(v.other[1]), t: on + ': ' + usd(v.other[1]) });
-    if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: 'vs. día anterior', v: arrow(d) + nf(Math.abs(d), 2), t: arrow(d) + nf(Math.abs(d), 2) + ' vs. día anterior', heroOnly: true }); }
+    const when = function (k, m) { return m ? 'prom. ' + MES[+k.slice(5, 7) - 1] : fmtDay(k); };   // mensual: «prom. sep»
+    s.hero = 'Petróleo ' + nm + ', dólares por barril'; s.val = usd(v.v);
+    s.cap = (v.monthly ? cap1(fmtMonth(v.date)) + ' · ' + nm + ', mensual' : cap1(fmtDay(v.date)) + ' · ' + nm);
+    s.heroCap = v.monthly ? cap1(fmtMonth(v.date, true)) + ' · promedio mensual' : fmtDay(v.date, true);
+    if (v.other) { const om = bcchMonthly(v.otherCode); s.lines.push({ l: on + (om ? ' (' + when(v.other[0], true) + ')' : ''), v: usd(v.other[1]), t: on + ': ' + usd(v.other[1]) + (om ? ' (' + when(v.other[0], true) + ')' : '') }); }
+    if (v.prev != null) { const d = v.v - v.prev; s.lines.push({ l: v.monthly ? 'vs. mes anterior' : 'vs. día anterior', v: arrow(d) + nf(Math.abs(d), 2), t: arrow(d) + nf(Math.abs(d), 2) + (v.monthly ? ' vs. mes anterior' : ' vs. día anterior'), heroOnly: true }); }
     s.spark = [v.spark, 'line'];
   }
   return s;
@@ -1131,7 +1138,7 @@ function detail(k) {
     return { pts: since(m ? imacecMonthly(from) : series('imacec', from), range), kind: 'bar', fmt: function (v) { return m ? signed(v, 1, '%') : pct(v); }, xfmt: monFmt, ax: function (v, d) { return nf(v, d) + '%'; }, diff: 'none' };
   }
   if (k === 'cobre') return { pts: since(series('cobre', from), range), kind: 'line', fmt: function (v) { return usd(v); }, xfmt: dayFmt, ax: function (v, d) { return nf(v, d); }, diff: 'pct' };
-  if (k === 'petroleo') return { pts: since(bcchSeries(prefs.crudo, from), range), kind: 'line', fmt: function (v) { return usd(v); }, xfmt: dayFmt, ax: function (v, d) { return nf(v, d); }, diff: 'pct' };
+  if (k === 'petroleo') return { pts: since(bcchSeries(prefs.crudo, from), range), kind: 'line', fmt: function (v) { return usd(v); }, xfmt: bcchMonthly(prefs.crudo) ? monFmt : dayFmt, ax: function (v, d) { return nf(v, d); }, diff: 'pct', monthly: bcchMonthly(prefs.crudo) };
 }
 function sheetInd(k) {
   const v = view(k), meta = IND[k];
@@ -1157,13 +1164,13 @@ function sheetInd(k) {
     if (k === 'cobre') { big = usd(v.v); cap = fmtDay(v.date, true) + ' · por libra'; }
     if (k === 'petroleo') {
       const s = bcchSeries(prefs.crudo, new Date().getFullYear() - 1), a = s[s.length - 1];
-      big = a ? usd(a[1]) : '—'; cap = a ? fmtDay(a[0], true) + ' · ' + (prefs.crudo === 'wti' ? 'WTI' : 'Brent') + ', por barril' : 'sin datos';
+      big = a ? usd(a[1]) : '—'; cap = a ? (bcchMonthly(prefs.crudo) ? fmtMonth(a[0], true) + ' · Brent, promedio mensual' : fmtDay(a[0], true) + ' · ' + (prefs.crudo === 'wti' ? 'WTI' : 'Brent') + ', por barril') : 'sin datos';
     }
     h += '<div class="p-big"><b>' + big + '</b><span>' + esc(cap) + '</span></div>';
   }
   if (k === 'ipc') h += seg('ipc', [['12m', 'En 12 meses'], ['m', 'Mensual']], prefs.ipc);
   if (k === 'imacec') h += seg('imacec', [['12m', 'En 12 meses'], ['m', 'Mensual']], prefs.imacec);
-  if (k === 'petroleo') h += seg('crudo', [['brent', 'Brent'], ['wti', 'WTI']], prefs.crudo);
+  if (k === 'petroleo') h += seg('crudo', [['wti', 'WTI'], ['brent', 'Brent']], prefs.crudo);
   if (k === 'imacec' && prefs.imacec === 'm' && !bcchSeries('imacecde', 2000).length) {
     h += '<p class="note">' + (failed.imacecde === 'sin-datos' ? 'La variación mensual llega con la próxima actualización desde el Banco Central.' : failed.imacecde ? 'No se pudo leer el Imacec desestacionalizado.' : 'Leyendo el Imacec desestacionalizado…') + '</p>';
   }
@@ -1176,9 +1183,8 @@ function sheetInd(k) {
     ? 'Variación respecto del mes anterior, calculada con la serie desestacionalizada del Banco Central. Esa serie se recalcula cada mes, así que los meses recientes pueden cambiar.'
     : 'Variación respecto del mismo mes del año anterior. El Banco Central revisa las cifras de meses recientes.') + '</p>';
   if (k === 'petroleo') {
-    h += '<p class="hint">Brent es la referencia del mar del Norte; WTI, la de Estados Unidos. ' + (v && v.market
-      ? 'El último valor es el precio de mercado del día (OilPriceAPI); los anteriores son los precios diarios del Banco Central, que los publica con algunos días de atraso.'
-      : 'Son los precios diarios del Banco Central, que los publica con algunos días de atraso.') + '</p>';
+    h += '<p class="hint">WTI es la referencia de Estados Unidos; Brent, la del mar del Norte. El Banco Central publica el WTI día a día, con algunos días de atraso, y el Brent como promedio mensual.' +
+      (v && v.market && v.crudo === 'wti' ? ' El último valor del WTI es el precio de mercado del día (OilPriceAPI).' : '') + '</p>';
   }
   const bcch = k === 'petroleo' || (k === 'imacec' && prefs.imacec === 'm');
   h += '<p class="hint">Fuente: ' + (bcch ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : (apiUsed || 'findic.cl') + ', con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + '.</p>';
@@ -1200,7 +1206,7 @@ function fillRange() {
       d.pts.forEach(function (p) { if (p[1] < mn[1]) mn = p; if (p[1] > mx[1]) mx = p; });
       const a = d.pts[0][1], b = d.pts[d.pts.length - 1][1];
       const ch = d.diff === 'pct' ? signed((b / a - 1) * 100, 1, '%') : d.diff === 'pp' ? signed(b - a, 2, ' pp') : '';
-      const when = function (p) { return d.kind === 'bar' || k === 'ipc' ? fmtMonth(p[0], true) : fmtDay(p[0], true); };
+      const when = function (p) { return d.kind === 'bar' || k === 'ipc' || d.monthly ? fmtMonth(p[0], true) : fmtDay(p[0], true); };
       st.innerHTML = '<div class="stat"><small>Mínimo</small><b>' + esc(d.fmt(mn[1])) + '</b><em>' + esc(when(mn)) + '</em></div>' +
         '<div class="stat"><small>Máximo</small><b>' + esc(d.fmt(mx[1])) + '</b><em>' + esc(when(mx)) + '</em></div>' +
         (ch ? '<div class="stat"><small>Cambio</small><b>' + ch + '</b><em>en ' + (prefs.range === 1 ? '1 año' : prefs.range + ' años') + '</em></div>'
