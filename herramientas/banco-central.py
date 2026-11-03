@@ -2,10 +2,13 @@
 """Trae series del Banco Central y las deja en la carpeta datos/ para la app.
 
 La API de la Base de Datos Estadísticos (BDE) del Banco Central pide usuario y clave, así que no se consulta
-desde el iPhone: esta tarea corre en GitHub Actions (.github/workflows/banco-central.yml) cada mañana, con
+desde el iPhone: esta tarea corre en GitHub Actions (.github/workflows/banco-central.yml) tres veces al día, con
 las credenciales guardadas como secretos del repositorio (BCCH_USER y BCCH_PASS). La app lee los archivos.
 
 Series:
+  datos/ipc-mensual.json   IPC general, variación mensual (cifra oficial del INE; F074.IPC.VAR.Z.Z.C.M).
+  datos/ipc-12m.json       IPC general, variación en 12 meses (serie empalmada, base 2023; F074.IPC.V12.Z.EP23.C.M).
+                           Las dos se buscan por su nombre la primera vez o si la serie guardada deja de tener datos.
   datos/imacec-desest.json Imacec desestacionalizado (índice), mensual. Con él la app calcula la variación
                            respecto del mes anterior. Si el código no es el esperado, se busca por su nombre.
   datos/wti.json           Precio del petróleo WTI (dólares por barril), diario desde 2014.
@@ -17,7 +20,8 @@ Series:
                            OILPRICEAPI_KEY (clave gratuita de oilpriceapi.com), se agrega el precio de mercado de los
                            días que el Banco Central aún no publica; cuando los publica, manda el del Banco Central.
 
-UF, dólar, IPC, TPM, Imacec en 12 meses y cobre no pasan por aquí: la app los lee de findic.cl. Al final, la tarea
+UF, dólar, TPM, Imacec en 12 meses y cobre no pasan por aquí: la app los lee de findic.cl (y de ahí también el IPC,
+por si llega antes que esta tarea). Al final, la tarea
 revisa que findic.cl responda y permita la lectura desde el navegador, y deja el resultado como nota.
 
 Cada archivo solo cambia cuando cambia su serie (un mes nuevo o una revisión), para no llenar el repositorio
@@ -309,7 +313,8 @@ def precio_mercado(tipo):
 IPC = {'mensual': 'ipc-mensual.json', '12m': 'ipc-12m.json'}
 DOCE = r'12 meses|doce meses|anual'
 NO_IPC = (r'sin |subyacente|sae|volatil|bien|servicio|transable|alimento|energia|combustible|vivienda|transporte|'
-          r'division|producto|grupo|incidencia|ponderac|expectativ|encuesta|region|sector|acumulad|ipcx|ipp|ipm|ipe\b')
+          r'division|producto|grupo|incidencia|ponderac|expectativ|encuesta|region|sector|acumulad|ipcx|ipp|ipm|ipe\b|'
+          r'fruta|verdura|analitico')
 
 
 def candidatas_ipc(cual):

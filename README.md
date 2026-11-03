@@ -19,8 +19,9 @@ Tablero de indicadores de Chile para el iPhone: UF, dólar observado, IPC, tasa 
 ## Fuentes
 
 - **UF, dólar, TPM, Imacec y cobre**: [findic.cl](https://findic.cl), con datos del Banco Central. Se leen directo desde el iPhone. Si findic.cl no responde, la app usa [mindicador.cl](https://mindicador.cl), que entrega lo mismo con el mismo formato.
-- **IPC**: se calcula con la UF. Entre el día 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior, así que el IPC de un mes es la UF del día 9 de dos meses después dividida por la del día 9 del mes siguiente. El dato mensual coincide con el del INE. El de 12 meses compone las variaciones mensuales y puede diferir en una décima del oficial.
-- **Imacec mensual y petróleo**: Banco Central de Chile. La API del Banco Central pide usuario y clave, así que no se consulta desde el iPhone. Una tarea de GitHub (`.github/workflows/banco-central.yml`) corre tres veces al día con `herramientas/banco-central.py` y deja las series en `datos/`:
+- **IPC**: las cifras oficiales del INE, mensual y en 12 meses, que el Banco Central publica el mismo día (el 8 de cada mes). Si la tarea del Banco Central aún no las trae, la app usa el IPC mensual de findic.cl (o mindicador.cl) y compone los doce meses. Como último respaldo, lo calcula con la UF: entre el día 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior. Ese cálculo necesita la UF del día 9 del mes siguiente, así que por sí solo va un mes atrasado.
+- **IPC oficial, Imacec mensual y petróleo**: Banco Central de Chile. La API del Banco Central pide usuario y clave, así que no se consulta desde el iPhone. Una tarea de GitHub (`.github/workflows/banco-central.yml`) corre tres veces al día con `herramientas/banco-central.py` y deja las series en `datos/`:
+  - `datos/ipc-mensual.json` y `datos/ipc-12m.json`: IPC general, variación mensual (`F074.IPC.VAR.Z.Z.C.M`) y en 12 meses (`F074.IPC.V12.Z.EP23.C.M`).
   - `datos/imacec-desest.json`: Imacec desestacionalizado (`F032.IMC.IND.Z.Z.EP18.Z.Z.1.M`), para la variación mensual.
   - `datos/wti.json`: precio diario del petróleo WTI desde 2014 (`F019.PPB.PRE.41B.D`).
   - `datos/brent.json`: precio del petróleo Brent desde 2014 (`F019.PPB.PRE.41AB.M`). El Banco Central no tiene Brent diario, solo el promedio mensual.

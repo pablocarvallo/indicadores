@@ -508,12 +508,12 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const MESL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-// UF, dólar, TPM, Imacec y cobre: findic.cl. Si no responde, mindicador.cl, que entrega lo mismo con el mismo formato.
+// UF, dólar, TPM, Imacec, cobre y el IPC más reciente: findic.cl. Si no responde, mindicador.cl, que entrega lo mismo con el mismo formato.
 const APIS = [{ url: 'https://findic.cl/api/', name: 'findic.cl', wait: 12000 }, { url: 'https://mindicador.cl/api/', name: 'mindicador.cl', wait: 15000 }];
 const API_CODE = { cobre: 'libra_cobre' };
-// Imacec desestacionalizado y petróleo: del Banco Central. Su API pide usuario y clave, así que no se consulta desde el
-// iPhone. Una tarea de GitHub (.github/workflows/banco-central.yml) los lee dos veces al día y los deja en datos/.
-const BCCH_FILES = { imacecde: 'datos/imacec-desest.json', brent: 'datos/brent.json', wti: 'datos/wti.json' };
+// IPC oficial, Imacec desestacionalizado y petróleo: del Banco Central. Su API pide usuario y clave, así que no se consulta
+// desde el iPhone. Una tarea de GitHub (.github/workflows/banco-central.yml) los lee tres veces al día y los deja en datos/.
+const BCCH_FILES = { ipcm: 'datos/ipc-mensual.json', ipc12: 'datos/ipc-12m.json', imacecde: 'datos/imacec-desest.json', brent: 'datos/brent.json', wti: 'datos/wti.json' };
 const KEY_PREFS = 'indicadores-preferencias', KEY_STAMP = 'indicadores-lectura';
 const DATA_P = 'indicadores-datos:';      // copia local de cada indicador y año
 const FRESH = 6 * 3600 * 1000;           // los años recientes se vuelven a leer cada 6 horas
@@ -521,7 +521,7 @@ const RANGES = [1, 5, 10];
 const IND = {
   uf: { name: 'UF', src: 'mi' },
   dolar: { name: 'Dólar observado', short: 'Dólar', src: 'mi', kind: 'line' },
-  ipc: { name: 'IPC', src: 'uf' },
+  ipc: { name: 'IPC', src: 'mi' },
   tpm: { name: 'Tasa de política monetaria', short: 'TPM', src: 'mi', kind: 'step' },
   imacec: { name: 'Imacec', src: 'mi', kind: 'bar' },
   cobre: { name: 'Precio del cobre', short: 'Cobre', src: 'mi', kind: 'line' },
@@ -683,7 +683,8 @@ function yearsFor(range) {
   return ys;
 }
 // Fuentes de cada indicador. El Imacec usa además el índice desestacionalizado, para la variación mensual.
-const SOURCE = { uf: ['uf'], dolar: ['dolar'], ipc: ['uf'], tpm: ['tpm'], imacec: ['imacec', 'imacecde'], cobre: ['cobre'], petroleo: ['brent', 'wti'] };
+// IPC: el oficial del Banco Central; el de findic.cl, por si llega antes; y el calculado con la UF, como respaldo.
+const SOURCE = { uf: ['uf'], dolar: ['dolar'], ipc: ['uf', 'ipcm', 'ipc12', 'ipc'], tpm: ['tpm'], imacec: ['imacec', 'imacecde'], cobre: ['cobre'], petroleo: ['brent', 'wti'] };
 async function ensure(inds, range, force) {
   const tasks = [], cur = new Date().getFullYear();
   const codes = [];
@@ -693,7 +694,7 @@ async function ensure(inds, range, force) {
       tasks.push(function () { return load(c, 'all', force).catch(function (e) { failed[c] = (e && e.message) || 'red'; throw e; }); });
       return;
     }
-    const ys = yearsFor(range + (c === 'uf' ? 1 : 0));
+    const ys = yearsFor(c === 'ipc' ? 1 : range + (c === 'uf' ? 1 : 0));   // del IPC de findic.cl basta lo reciente
     if (c === 'uf' && new Date().getMonth() === 11) ys.push(cur + 1);   // en diciembre ya hay UF de enero
     ys.forEach(function (y) {
       tasks.push(function () {
@@ -731,6 +732,11 @@ function imacecMonthly(fromYear) {
   }
   return out;
 }
+// El IPC del último mes viene del Banco Central (y no de findic.cl o de la UF)
+function ipcOfficial() {
+  const b = bcchSeries('ipcm', 2000), m = ipcSeries(new Date().getFullYear() - 1, 'm');
+  return !!(b.length && m.length && b[b.length - 1][0] === m[m.length - 1][0]);
+}
 function lastOnOrBefore(s, k) { for (let i = s.length - 1; i >= 0; i--) if (s[i][0] <= k) return s[i]; return null; }
 // IPC desde la UF: entre el día 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior.
 // Por eso, el IPC de un mes es la razón entre la UF del 9 de dos meses después y la del 9 del mes siguiente.
@@ -739,7 +745,7 @@ function ufNine(fromYear) {
   series('uf', fromYear).forEach(function (p) { if (p[0].slice(8) === '09') m[p[0].slice(0, 7)] = p[1]; });
   return m;
 }
-function ipcSeries(fromYear, mode) {
+function ipcUf(fromYear, mode) {
   const nine = ufNine(fromYear - 1), out = [], now = new Date();
   for (let y = fromYear; y <= now.getFullYear(); y++) {
     for (let mo = 0; mo < 12; mo++) {
@@ -749,6 +755,27 @@ function ipcSeries(fromYear, mode) {
     }
   }
   return out;
+}
+// IPC de cada mes. Mensual: el oficial del Banco Central; si aún no llega, el de findic.cl (o mindicador.cl); y si
+// tampoco, el calculado con la UF. En 12 meses: el oficial; si falta, el de la UF; y si no, se componen los doce meses.
+function monthMap(s, m) { s.forEach(function (p) { m[p[0].slice(0, 7) + '-01'] = p[1]; }); return m; }
+function ipcSeries(fromYear, mode) {
+  const m = monthMap(bcchSeries('ipcm', fromYear - 1), monthMap(series('ipc', fromYear - 1), monthMap(ipcUf(fromYear - 1, 'm'), {})));
+  let out = m;
+  if (mode === '12m') {
+    out = monthMap(bcchSeries('ipc12', fromYear), monthMap(ipcUf(fromYear, '12m'), {}));
+    Object.keys(m).forEach(function (k) {
+      if (k in out) return;
+      let f = 1, n = 0;
+      for (let i = 0; i < 12; i++) {
+        const a = addMonths(+k.slice(0, 4), +k.slice(5, 7) - 1, -i), kk = a[0] + '-' + pad(a[1] + 1) + '-01';
+        if (!(kk in m)) break;
+        f *= 1 + m[kk] / 100; n++;
+      }
+      if (n === 12) out[k] = Math.round((f - 1) * 1000) / 10;
+    });
+  }
+  return Object.keys(out).sort().filter(function (k) { return +k.slice(0, 4) >= fromYear; }).map(function (k) { return [k, out[k]]; });
 }
 // Puntos de un rango, recortados a la fecha de inicio
 function since(s, years) {
@@ -1178,7 +1205,8 @@ function sheetInd(k) {
   h += chartHTML();
   h += '<div class="stats" id="stats"></div>';
   h += '<h3 class="grp">Últimos valores</h3><ul class="list" id="recent"></ul>';
-  if (k === 'ipc') h += '<p class="hint">Calculado con la UF: entre el 10 de un mes y el 9 del siguiente, la UF se reajusta según el IPC del mes anterior. El dato mensual coincide con el del INE; el de 12 meses compone las variaciones mensuales y puede diferir en una décima del oficial.</p>';
+  if (k === 'ipc') h += '<p class="hint">' + (ipcOfficial() ? 'Cifras oficiales del INE, que el Banco Central publica el mismo día (el 8 de cada mes).'
+    : 'Aún no llegan las cifras oficiales del Banco Central: el IPC sale de findic.cl o se calcula con la UF, que se reajusta según el IPC del mes anterior.') + '</p>';
   if (k === 'imacec') h += '<p class="hint">' + (prefs.imacec === 'm'
     ? 'Variación respecto del mes anterior, calculada con la serie desestacionalizada del Banco Central. Esa serie se recalcula cada mes, así que los meses recientes pueden cambiar.'
     : 'Variación respecto del mismo mes del año anterior. El Banco Central revisa las cifras de meses recientes.') + '</p>';
@@ -1186,8 +1214,8 @@ function sheetInd(k) {
     h += '<p class="hint">WTI es la referencia de Estados Unidos; Brent, la del mar del Norte. El Banco Central publica el WTI día a día, con algunos días de atraso, y el Brent como promedio mensual.' +
       (v && v.market && v.crudo === 'wti' ? ' El último valor del WTI es el precio de mercado del día (OilPriceAPI).' : '') + '</p>';
   }
-  const bcch = k === 'petroleo' || (k === 'imacec' && prefs.imacec === 'm');
-  h += '<p class="hint">Fuente: ' + (bcch ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : (apiUsed || 'findic.cl') + ', con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + '.</p>';
+  const bcch = k === 'petroleo' || (k === 'imacec' && prefs.imacec === 'm') || (k === 'ipc' && ipcOfficial());
+  h += '<p class="hint">Fuente: ' + (bcch ? 'Banco Central de Chile, API de la Base de Datos Estadísticos' : (apiUsed || 'findic.cl') + ', con datos del Banco Central' + (k === 'ipc' ? ' y el INE' : '')) + (k === 'ipc' && ipcOfficial() ? ', con datos del INE' : '') + '.</p>';
   h += prefs.hero === k
     ? '<p class="hint pinned">' + I.pin + 'Destacado arriba en la pantalla principal.</p>'
     : '<button type="button" class="btn tonal block" data-act="hero" data-k="' + k + '">' + I.pin + 'Destacar arriba</button>';
@@ -1231,7 +1259,7 @@ async function changeRange() {
 }
 // Pasos para conectar la API del Banco Central (una sola vez, desde GitHub)
 function bcchHelp() {
-  return '<p class="note">La API del Banco Central pide usuario y clave. Para no guardarlos en el iPhone, una tarea de GitHub trae los datos dos veces al día y los deja en el repositorio de esta app.</p>' +
+  return '<p class="note">La API del Banco Central pide usuario y clave. Para no guardarlos en el iPhone, una tarea de GitHub trae los datos tres veces al día y los deja en el repositorio de esta app.</p>' +
     '<ol class="steps">' +
     '<li>Crea tu cuenta gratuita y activa las credenciales en <a href="https://si3.bcentral.cl/Siete/es/Siete/API" target="_blank" rel="noopener">si3.bcentral.cl/Siete/es/Siete/API</a>.</li>' +
     '<li>En GitHub, abre el repositorio <b>indicadores</b> → Settings → Secrets and variables → Actions, y crea dos secretos: <b>BCCH_USER</b> (tu correo) y <b>BCCH_PASS</b> (la clave de la API).</li>' +
@@ -1250,11 +1278,11 @@ function sheetSettings() {
     }).join('') + '</ul>' +
     '<h3 class="grp">Fuentes</h3><ul class="list">' +
     kv('UF, dólar, TPM, Imacec y cobre', esc(apiUsed || 'findic.cl')) +
-    kv('IPC', 'Calculado con la UF') +
+    kv('IPC', ipcOfficial() ? 'Banco Central (INE)' : esc(apiUsed || 'findic.cl')) +
     kv('Imacec mensual y petróleo', 'Banco Central') + '</ul>' +
-    '<p class="hint">Si findic.cl no responde, la app usa mindicador.cl, que entrega los mismos datos.</p>' +
+    '<p class="hint">Si findic.cl no responde, la app usa mindicador.cl, que entrega los mismos datos. Si tampoco hay IPC del Banco Central ni de esas fuentes, se calcula con la UF.</p>' +
     '<h3 class="grp">API del Banco Central</h3>' +
-    (at ? '<p class="hint">Conectada. La tarea de GitHub revisa el Banco Central dos veces al día; los datos cambiaron por última vez ' + esc(fmtWhen(at)) + '.</p>'
+    (at ? '<p class="hint">Conectada. La tarea de GitHub revisa el Banco Central tres veces al día; los datos cambiaron por última vez ' + esc(fmtWhen(at)) + '.</p>'
         : none ? bcchHelp() : '<p class="hint">Aún no se han leído los datos del Banco Central.</p>');
 }
 function renderSheet() {
